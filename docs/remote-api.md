@@ -15,10 +15,14 @@ Every endpoint except the two below needs `Authorization: Bearer <token>`; witho
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/pair/request` | `{"device":"Pixel 8"}` | `{"ok":true}`; the TV shows a 4-digit PIN for 2 minutes |
+| POST | `/api/pair/request` | `{"device":"Pixel 8"}` | `{"ok":true}`; the TV shows a 4-digit PIN for 2 minutes. Too soon after the last one: `429 {"error":"pair_cooldown","retry_after_s":30}` |
 | POST | `/api/pair/confirm` | `{"pin":"4821"}` | `{"token":"<32 hex>","name":"Living Room TV"}` or `403 {"error":"bad_pin"}` |
 
 Tokens don't expire; the phone stores its token per TV.
+
+A PIN takes 3 wrong guesses, then it's gone and the phone has to ask for a new one. A new PIN
+comes at least 30 s after the last request or wrong guess; every 3 wrong guesses double that wait,
+up to an hour, until a phone pairs.
 
 ## State
 

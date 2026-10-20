@@ -32,6 +32,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -60,6 +61,15 @@ final class RemoteServer {
     private NsdManager.RegistrationListener nsd;
     private volatile String pin;
     private volatile long pinUntil;
+    // A 4-digit PIN is 10,000 guesses: without a cap anyone on the LAN can try them all in its 2 min.
+    // A PIN takes 3 wrong guesses. New PINs wait 30 s after the last request or wrong guess, doubled
+    // for every 3 wrong guesses up to an hour; counted across PINs, so asking for fresh ones doesn't
+    // reset it. A successful pairing clears it.
+    private static final int PIN_TRIES = 3;
+    private static final long PIN_COOLDOWN_MS = 30_000, PIN_COOLDOWN_MAX_MS = 3_600_000;
+    private final Object pairing = new Object();
+    private int pinTriesLeft, misses;
+    private long nextPinAt;
 
     RemoteServer(HomeService svc) { this.svc = svc; }
 
@@ -354,19 +364,40 @@ final class RemoteServer {
 
     private Res pairRequest(Req r) throws JSONException {
         String device = r.json().optString("device", "a phone");
-        pin = String.format(Locale.ROOT, "%04d", new SecureRandom().nextInt(10000));
-        pinUntil = System.currentTimeMillis() + 120_000;
-        String shown = pin;
+        String shown = String.format(Locale.ROOT, "%04d", new SecureRandom().nextInt(10000));
+        synchronized (pairing) {
+            long now = System.currentTimeMillis();
+            if (now < nextPinAt) {
+                return Res.json(429, err("pair_cooldown").put("retry_after_s", (nextPinAt - now + 999) / 1000));
+            }
+            nextPinAt = now + PIN_COOLDOWN_MS;
+            pin = shown;
+            pinUntil = now + 120_000;
+            pinTriesLeft = PIN_TRIES;
+        }
         main.post(() -> svc.showPin(shown, device));
         return ok();
     }
 
     private Res pairConfirm(Req r) throws JSONException {
         String given = r.json().optString("pin");
-        if (pin == null || System.currentTimeMillis() > pinUntil || !pin.equals(given)) {
-            return Res.json(403, err("bad_pin"));
+        synchronized (pairing) {
+            if (pin == null || System.currentTimeMillis() > pinUntil) return Res.json(403, err("bad_pin"));
+            if (!MessageDigest.isEqual(pin.getBytes(StandardCharsets.UTF_8), given.getBytes(StandardCharsets.UTF_8))) {
+                misses++;
+                long wait = Math.min(PIN_COOLDOWN_MAX_MS, PIN_COOLDOWN_MS << Math.min((misses - 1) / PIN_TRIES, 7));
+                nextPinAt = Math.max(nextPinAt, System.currentTimeMillis() + wait);
+                // Out of tries: the PIN is gone and the phone has to ask for a new one.
+                if (--pinTriesLeft <= 0) {
+                    pin = null;
+                    main.post(svc::hidePin);
+                }
+                return Res.json(403, err("bad_pin"));
+            }
+            pin = null;
+            misses = 0;
+            nextPinAt = 0;
         }
-        pin = null;
         byte[] b = new byte[16];
         new SecureRandom().nextBytes(b);
         StringBuilder sb = new StringBuilder();
