@@ -12,7 +12,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 [ -d "$SDK/build-tools/34.0.0" ] || SDK=/opt/homebrew/share/android-commandlinetools
 [ -d "$SDK/build-tools/34.0.0" ] || SDK=/opt/homebrew/share/android-commandlinetools
-BT="$SDK/build-tools/34.0.0"
+# BUILD_TOOLS overrides: build-tools 34's d8 crashes under JDK 21.
+BT="${BUILD_TOOLS:-$SDK/build-tools/34.0.0}"
 JAR="$SDK/platforms/android-34/android.jar"
 PKG=dev.bhawesh.tvhome
 B=build
