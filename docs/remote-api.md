@@ -28,11 +28,13 @@ up to an hour, until a phone pairs.
 
 | Method | Path | Response |
 |---|---|---|
-| GET | `/api/info` | `{"name":"Living Room TV","model":"Fire TV Stick (3rd gen)","version":"1","keys":"ready"\|"needs_bootstrap"}` |
+| GET | `/api/info` | `{"name":"Living Room TV","model":"AFTSSS","version":"1","keys":"ready"\|"needs_bootstrap"}` |
 | GET | `/api/keys/bootstrap` | `{"adb_port":5555,"cmd":"pkill -f …; CLASSPATH=… nohup app_process … &"}` |
 | GET | `/api/now` | `{"pkg":"com.netflix.ninja","label":"Netflix","playing":true}` (`playing` = media audio active) |
 | GET | `/api/apps` | `[{"pkg":"com.netflix.ninja","label":"Netflix","color":"#E50914","pinned":true}]` (pinned = on the TV shelf, in shelf order first) |
 | GET | `/api/apps/<pkg>/banner.png` | PNG, the app's TV banner (320x180) |
+
+`model` in `/api/info` is the device's `Build.MODEL` (`AFTSSS` is the Fire TV Stick 3rd gen).
 
 `keys` in `/api/info`: whether key presses and typing work. They go through a small injector
 process that must run as the shell user, and Fire OS refuses adb connections made from the stick

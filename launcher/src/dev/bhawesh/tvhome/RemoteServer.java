@@ -230,7 +230,7 @@ final class RemoteServer {
         if (m.equals("POST")) wake();
 
         if (m.equals("GET") && p.equals("/api/info")) {
-            return Res.json(200, new JSONObject().put("name", tvName()).put("model", "Fire TV Stick (3rd gen)")
+            return Res.json(200, new JSONObject().put("name", tvName()).put("model", android.os.Build.MODEL)
                     .put("version", "1").put("keys", Keys.status(svc)));
         }
         if (m.equals("GET") && p.equals("/api/keys/bootstrap")) {
