@@ -7,6 +7,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.PixelFormat;
+import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
@@ -138,8 +139,11 @@ public class HomeService extends AccessibilityService {
         if (now - lastBounce < 1000) return;
         lastBounce = now;
         showMask();
+        // Android 10+ (Fire OS 8) blocks this background start unless our uid has a visible window:
+        // fire once the cover has drawn, so it counts as one. Fire OS 7 has no such check.
+        long delay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? COVER_DRAWN_MS : 0;
         getSystemService(AlarmManager.class).setExact(AlarmManager.ELAPSED_REALTIME,
-                SystemClock.elapsedRealtime(), launch(this));
+                SystemClock.elapsedRealtime() + delay, launch(this));
         // The Amazon launcher holds ~130 MB; reclaim it once it's behind us (after the 5 s guard).
         ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         handler.postDelayed(() -> am.killBackgroundProcesses(AMAZON_HOME), 8000);
@@ -165,6 +169,8 @@ public class HomeService extends AccessibilityService {
     static void hideMask() {
         if (self != null) self.removeMask();
     }
+
+    private static final long COVER_DRAWN_MS = 300;
 
     private static final int PASSIVE = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
