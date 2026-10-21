@@ -32,6 +32,9 @@ Stick 4K Max). On the 3rd gen stick:
 - **Search**, in the top bar: type with the Fire TV keyboard, or just ask Alexa. Results from the
   apps on this TV come first, then YouTube's own results. Alexa voice searches land here instead
   of on Amazon's results page.
+- **Lights.** Your WiZ smart bulbs from the TV and the phone: power, brightness, warmth, colours
+  and WiZ's scenes, plus two automatic modes: dim the room while something plays, and let the
+  light take the colour of what you're on in the home.
 - **Offline, calmly.** Without internet the home keeps working on what it saved, says so, offers
   Wi-Fi settings, and refreshes by itself once the TV is back online.
 - **A live sky** behind everything that follows the time of day, a fixed colour wash, or one of
@@ -51,6 +54,7 @@ Stick 4K Max). On the 3rd gen stick:
 | ![Recently watched and ranked trending rows](docs/screenshots/tv-home-rows.jpg) | ![Search](docs/screenshots/tv-search.jpg) |
 | ![Your own picture as the background, with the top bar as icons](docs/screenshots/tv-home-wallpaper.jpg) | ![Customise home](docs/screenshots/tv-customise-home.jpg) |
 | ![Apps in use](docs/screenshots/tv-apps-in-use.jpg) | ![Offline](docs/screenshots/tv-offline.jpg) |
+| ![Lights](docs/screenshots/tv-lights.jpg) | |
 
 **On your phone** (Android, iOS)
 
@@ -61,6 +65,7 @@ Stick 4K Max). On the 3rd gen stick:
   phone**; simple commands work without one. It knows your watch history and asks before it
   resumes something.
 - **Apps** and **Discover**: open any app, browse trending titles, tap to play on the TV.
+- **Lights**: the same controls as the TV's, with sliders, from the Remote tab or Settings.
 - **Wallpapers**: send pictures from your phone to the TV for the Photos screensaver, and pick
   one as the home background. The TV crops and resizes each to 1920x1080, and shades it softly
   where the clock and names sit so they stay readable.
@@ -98,6 +103,11 @@ A few Fire OS walls and how Fireglass gets round them:
   Amazon's home does, and the listener reads that. JioHotstar names only the episode, so the show
   comes from the content ids in its stream's path, looked up on Hotstar's content API (only the
   ids are sent; the stream URL carries your account's token).
+- **Smart bulbs speak a local protocol, but not every router lets the TV hear them.** WiZ bulbs
+  take JSON over UDP 38899 on the LAN, so the TV asks every address and talks to whatever answers.
+  Some routers keep wireless devices apart (here the TV can't even resolve the bulb's address); then
+  Fireglass goes through [Lumen](https://github.com/bhaweshverma50/lumen), a WiZ server on the LAN,
+  if one is running.
 - **Alexa's searches open Amazon's results page.** Its first line is what Alexa heard ("search for
   mirzapur"); the accessibility service covers the page, reads that, and opens Fireglass Search
   with the rest. Fire TV's YouTube app takes no search links, so YouTube results come from
@@ -112,14 +122,13 @@ else on your Wi-Fi can run through all 10,000 PINs.
 
 ## Download
 
-Prebuilt files are on the [releases page](https://github.com/bhaweshverma50/fireglass/releases). The phone apps
-haven't changed since 1.1.1:
+Prebuilt files are on the [latest release](https://github.com/bhaweshverma50/fireglass/releases/latest):
 
 | File | For | Install |
 |---|---|---|
-| [Fireglass-Remote-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
-| [Fireglass-Remote-1.1.1-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
-| [Fireglass-TV-launcher-1.2.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.2.0/Fireglass-TV-launcher-1.2.0.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
+| [Fireglass-Remote-1.3.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.0/Fireglass-Remote-1.3.0.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
+| [Fireglass-Remote-1.3.0-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.0/Fireglass-Remote-1.3.0-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
+| [Fireglass-TV-launcher-1.3.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.0/Fireglass-TV-launcher-1.3.0.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
 
 The APKs are signed with a local debug key. To install over a copy signed with a different key, uninstall it first.
 
@@ -183,6 +192,8 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 - Trending titles and per-app links come from JustWatch's public API, which is unofficial and
   could change. So do the Hotstar content lookup and the YouTube results. Weather is from
   Open-Meteo, location from your IP via ip-api.com.
+- Lights through Lumen need the machine running Lumen to be up; bulbs the TV can reach itself
+  don't. Only WiZ bulbs are supported.
 - After an Alexa voice search, Amazon's results page shows for a moment before the cover goes up:
   Fireglass only hears about it once it's drawn.
 - Someone on your Wi-Fi can hold off new pairings for up to an hour by sending wrong PINs (they

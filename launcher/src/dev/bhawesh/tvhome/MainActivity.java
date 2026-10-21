@@ -91,7 +91,7 @@ public class MainActivity extends Activity {
     private final Map<View, Integer> artColors = new HashMap<>();
     // Top bar as icons only (HomeSettings): names kept here, shown in a tag under the focused one.
     private final Map<TextView, String> navLabels = new HashMap<>();
-    private boolean iconsOnly;
+    private boolean iconsOnly, crowded; // crowded: the labelled bar would run into the clock block
     private TextView navTip;
     private final List<List<View>> sectionCards = new ArrayList<>();
     // Poster images per row, loaded only near where focus is and dropped while away in an app:
@@ -355,6 +355,12 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
         np.setMargins(0, dp(Look.PAD_TOP + 4), dp(Look.PAD_X), 0);
         page.addView(nav, np);
+        // Labels that would run into the clock, greeting and weather: show icons instead.
+        nav.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, orr, ob) -> {
+            if (iconsOnly || nav.getLeft() >= bar.view.getRight() + dp(24)) return;
+            crowded = true;
+            nav.post(this::applyNavStyle);
+        });
         navTip = Look.text(this, Look.sans(this, 600), 12, Color.WHITE);
         navTip.setBackground(new Look.Glass(dp(12), 0.95f));
         navTip.setPadding(dp(12), dp(6), dp(12), dp(6));
@@ -522,7 +528,10 @@ public class MainActivity extends Activity {
 
     /** Icons only: the focused button's name in a small glass tag under it, gliding along with focus. */
     private void showTip(TextView t) {
-        if (!iconsOnly) return;
+        if (!bare(t)) {
+            navTip.animate().alpha(0f).setDuration(ms(120)).start();
+            return;
+        }
         navTip.setText(navLabels.get(t));
         navTip.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         View row = (View) t.getParent();
@@ -538,15 +547,25 @@ public class MainActivity extends Activity {
                 .setDuration(ms(fresh ? 200 : 300)).start();
     }
 
+    /**
+     * Just the icon, its name in the tag under it when focused: every button in Icons only, and
+     * Wi-Fi always, since a network's name can be any length.
+     */
+    private boolean bare(TextView t) {
+        return iconsOnly || t == wifiItem;
+    }
+
     private void applyNavStyle() {
-        iconsOnly = HomeSettings.get(this, HomeSettings.NAV) == 1;
+        iconsOnly = HomeSettings.get(this, HomeSettings.NAV) == 1 || crowded;
         for (Map.Entry<TextView, String> e : navLabels.entrySet()) {
             TextView t = e.getKey();
-            t.setText(iconsOnly ? "" : e.getValue());
-            t.setCompoundDrawablePadding(iconsOnly ? 0 : dp(8));
-            t.setPadding(dp(iconsOnly ? 12 : 14), 0, dp(iconsOnly ? 12 : 16), 0);
+            boolean b = bare(t);
+            t.setText(b ? "" : e.getValue());
+            t.setCompoundDrawablePadding(b ? 0 : dp(8));
+            t.setPadding(dp(b ? 12 : 14), 0, dp(b ? 12 : 16), 0);
         }
-        if (!iconsOnly) navTip.setAlpha(0f);
+        View f = getCurrentFocus();
+        if (!(f instanceof TextView) || !navLabels.containsKey(f) || !bare((TextView) f)) navTip.setAlpha(0f);
     }
 
     private void movePuck(View item) {
@@ -921,6 +940,7 @@ public class MainActivity extends Activity {
         bar.onPhoto(this, photo);
         appTitle.setShadowLayer(dp(photo ? 8 : 16), 0, dp(1), photo ? 0xCC000000 : 0x66000000);
         bar.weather.setVisibility(HomeSettings.get(this, HomeSettings.WEATHER) == 1 ? View.VISIBLE : View.GONE);
+        crowded = false;
         applyNavStyle();
         info.setVisibility(minimal ? View.GONE : View.VISIBLE);
         appTitle.setVisibility(minimal ? View.VISIBLE : View.GONE);
@@ -1523,7 +1543,7 @@ public class MainActivity extends Activity {
         } catch (SecurityException ignored) { }
         String label = offline ? "Offline" : online ? name : "No internet";
         navLabels.put(wifiItem, label);
-        wifiItem.setText(iconsOnly ? "" : label);
+        if (!bare(wifiItem)) wifiItem.setText(label);
         wifiIcon.dim = offline || !online;
         wifiIcon.invalidateSelf();
     }
