@@ -21,6 +21,9 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -124,6 +127,10 @@ public class MainActivity extends Activity {
     private long lastKeyAt;
     private int packageSeq;
 
+    // Internet, not just Wi-Fi: Fire OS marks the network validated once its probe gets through.
+    private boolean online = true;
+    private ConnectivityManager.NetworkCallback netWatch;
+
     private final BroadcastReceiver tick = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { bar.update(MainActivity.this); updateWifi(); }
     };
@@ -165,6 +172,7 @@ public class MainActivity extends Activity {
         tf.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         tf.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         registerReceiver(tick, tf);
+        watchNetwork();
         resumed = true;
         bar.update(this);
         updateWifi();
@@ -209,6 +217,8 @@ public class MainActivity extends Activity {
         sky.setRunning(false);
         handler.removeCallbacks(advance);
         unregisterReceiver(tick);
+        if (netWatch != null) getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netWatch);
+        netWatch = null;
         if (options != null) options.dismiss();
     }
 
@@ -914,6 +924,8 @@ public class MainActivity extends Activity {
 
     /** "Recently opened", then a row per app (pinned order) with what's trending on it. */
     private void buildSections(JSONArray recent) {
+        // Rebuilt under focus (the offline banner going away, say): put it back on a card after.
+        boolean refocus = sections.hasFocus();
         sections.removeAllViews();
         sectionCards.clear();
         rowLoaders.clear();
@@ -924,17 +936,24 @@ public class MainActivity extends Activity {
             JSONObject t = recent.optJSONObject(i);
             if (t != null) rec.add(t);
         }
+        if (!online) addOfflineBanner();
         if (!rec.isEmpty() && HomeSettings.get(this, HomeSettings.RECENT) == 1) addSection("Recently watched", rec, null);
-        if (HomeSettings.get(this, HomeSettings.TRENDING) == 0) { wireFocus(); return; }
         List<String> order = new ArrayList<>(dockPkgs);
         for (String p : apps.keySet()) if (!order.contains(p)) order.add(p);
+        if (HomeSettings.get(this, HomeSettings.TRENDING) == 0) order.clear();
         for (String pkg : order) {
             App a = apps.get(pkg);
             List<JSONObject> list = titlesOn(pkg, 10);
             if (a != null && list.size() >= 3) addSection("Trending on " + a.label, list, pkg);
         }
         wireFocus();
-        if (resumed) loadRowsAround(0);
+        // The first two rows of pictures; the offline banner, when up, is a row of its own above them.
+        if (resumed) loadRowsAround(online ? 0 : 1);
+        if (refocus) {
+            View v = card(focusPkg);
+            if (v == null && !sectionCards.isEmpty()) v = sectionCards.get(0).get(0);
+            if (v != null) v.requestFocus(); else restoreFocus();
+        }
     }
 
     private void addSection(String title, List<JSONObject> items, String pkg) {
@@ -943,8 +962,9 @@ public class MainActivity extends Activity {
         sections.addView(label, llp(-2, -2, dp(Look.PAD_X + 2), dp(12), 0, 0));
         RowScroll rs = new RowScroll(this, dp(Look.PAD_X));
         LinearLayout r = row();
-        // Just enough room for the focus lift; rows below the apps sit close together.
-        r.setPadding(dp(Look.PAD_X), dp(12), dp(Look.PAD_X), dp(6));
+        // Just enough room for the focus lift; rows below the apps sit close together. Poster rows
+        // are taller, so they get a little more air.
+        r.setPadding(dp(Look.PAD_X), dp(12), dp(Look.PAD_X), dp(pkg == null ? 6 : 18));
         rs.addView(r);
         List<View> cards = new ArrayList<>();
         rowLoaders.add(new ArrayList<>());
@@ -1027,7 +1047,7 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private static final int RANK_POSTER_W = 116;
+    private static final int RANK_POSTER_W = 96;
 
     /**
      * A trending title as a ranked poster, like a streaming app's Top 10: its rank as a big serif
@@ -1038,8 +1058,10 @@ public class MainActivity extends Activity {
         App a = apps.get(pkg);
         int color = a != null ? a.color : accent;
         int pw = dp(RANK_POSTER_W), ph = pw * 3 / 2;
-        RankNumber num = new RankNumber(this, rank, color, ph);
-        int overlap = (int) (num.wide * 0.3f);
+        // Numerals a little shorter than the poster and only tucked under its edge, so each pair
+        // reads as one item with air either side.
+        RankNumber num = new RankNumber(this, rank, color, ph * 4 / 5);
+        int overlap = (int) (num.wide * 0.18f);
         FrameLayout unit = new FrameLayout(this);
         unit.setClipChildren(false);
         unit.setTag(t.optString("id"));
@@ -1093,8 +1115,100 @@ public class MainActivity extends Activity {
         }));
         cards.add(unit);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(num.wide - overlap + pw, ph);
-        lp.setMargins(rank == 1 ? 0 : dp(6), 0, 0, 0);
+        lp.setMargins(rank == 1 ? 0 : dp(26), 0, 0, 0);
         row.addView(unit, lp);
+    }
+
+    private void watchNetwork() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        online = isOnline(cm);
+        netWatch = new ConnectivityManager.NetworkCallback() {
+            @Override public void onCapabilitiesChanged(Network n, NetworkCapabilities caps) { recheck(); }
+            @Override public void onLost(Network n) { recheck(); }
+            private void recheck() {
+                boolean now = isOnline(cm);
+                if (now == online || !resumed) return;
+                online = now;
+                updateWifi();
+                // Offline: the banner goes up over the saved rows. Back online: fresh rows and weather.
+                loadContent();
+            }
+        };
+        cm.registerDefaultNetworkCallback(netWatch, handler);
+    }
+
+    private static boolean isOnline(ConnectivityManager cm) {
+        NetworkCapabilities caps = cm.getNetworkCapabilities(cm.getActiveNetwork());
+        return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    /**
+     * Offline: a glass card above the rows saying they're the saved ones and will refresh by
+     * themselves, with a way to Wi-Fi settings. It's the first row, so Down from the apps finds it.
+     */
+    private void addOfflineBanner() {
+        LinearLayout card = new LinearLayout(this);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setBackground(new Look.Glass(dp(20), 0.9f));
+        card.setPadding(dp(16), dp(14), dp(14), dp(14));
+
+        FrameLayout badge = new FrameLayout(this);
+        GradientDrawable disc = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0x66FFB24A, 0x1FFF7A45});
+        disc.setShape(GradientDrawable.OVAL);
+        badge.setBackground(disc);
+        Look.Icon icon = new Look.Icon(Look.Icon.WIFI, dp(18));
+        icon.dim = true;
+        icon.setColor(0xFFFFC27A);
+        ImageView iv = new ImageView(this);
+        iv.setImageDrawable(icon);
+        badge.addView(iv, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
+        card.addView(badge, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        if (!calm) {
+            // A slow breath on the badge, the only thing moving while offline.
+            ValueAnimator breathe = ValueAnimator.ofFloat(0.55f, 1f).setDuration(1600);
+            breathe.setRepeatMode(ValueAnimator.REVERSE);
+            breathe.setRepeatCount(ValueAnimator.INFINITE);
+            breathe.addUpdateListener(v -> badge.setAlpha((float) v.getAnimatedValue()));
+            badge.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override public void onViewAttachedToWindow(View v) { breathe.start(); }
+                @Override public void onViewDetachedFromWindow(View v) { breathe.cancel(); }
+            });
+        }
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        TextView title = Look.text(this, Look.serif(this), 21, Color.WHITE);
+        title.setText("You're offline");
+        TextView sub = Look.text(this, Look.sans(this, 500), 12, 0x99FFFFFF);
+        sub.setText("Showing titles saved earlier. Everything refreshes once the TV is back online.");
+        words.addView(title);
+        words.addView(sub, llp(-2, -2, 0, dp(1), 0, 0));
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(0, -2, 1f);
+        wp.setMargins(dp(14), 0, dp(14), 0);
+        card.addView(words, wp);
+
+        TextView wifi = optionRow("Wi-Fi settings", null);
+        GradientDrawable idle = (GradientDrawable) wifi.getBackground();
+        idle.setColor(0x1FFFFFFF);
+        wifi.setOnFocusChangeListener((v, has) -> {
+            idle.setColor(has ? 0xF2FFFFFF : 0x1FFFFFFF);
+            wifi.setTextColor(has ? 0xFF16161C : Color.WHITE);
+            if (!has) return;
+            focusPkg = null;
+            dimTo(1f);
+            loadRowsAround(1);
+            scroll.smoothScrollTo(0, Math.max(0, sections.getTop() - dp(96)));
+        });
+        wifi.setOnClickListener(v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS)));
+        card.addView(wifi, new LinearLayout.LayoutParams(-2, dp(36)));
+
+        sections.addView(card, llp(-1, -2, dp(Look.PAD_X), dp(14), dp(Look.PAD_X), dp(4)));
+        // A row of one, so the D-pad wiring treats it like the rows below.
+        List<View> cards = new ArrayList<>();
+        cards.add(wifi);
+        sectionCards.add(cards);
+        rowLoaders.add(new ArrayList<>());
+        rowImages.add(new ArrayList<>());
     }
 
     /** Posters for row {@code s} and its neighbours; the first rows also load once content arrives. */
@@ -1322,8 +1436,8 @@ public class MainActivity extends Activity {
                 offline = wm.getConnectionInfo().getNetworkId() == -1;
             }
         } catch (SecurityException ignored) { }
-        wifiItem.setText(offline ? "Offline" : name);
-        wifiIcon.dim = offline;
+        wifiItem.setText(offline ? "Offline" : online ? name : "No internet");
+        wifiIcon.dim = offline || !online;
         wifiIcon.invalidateSelf();
     }
 
@@ -1474,7 +1588,7 @@ public class MainActivity extends Activity {
             fill.setLetterSpacing(-0.06f);
             edge.set(fill);
             edge.setStyle(Paint.Style.STROKE);
-            edge.setStrokeWidth(Look.dp(c, 1.6f));
+            edge.setStrokeWidth(Look.dp(c, 1.2f));
             fill.getTextBounds(n, 0, n.length(), ink);
             inset = -ink.left + Look.dp(c, 2);
             wide = (int) Math.ceil(ink.width() + Look.dp(c, 4));
@@ -1492,10 +1606,11 @@ public class MainActivity extends Activity {
         @Override protected void onDraw(Canvas c) {
             float h = getHeight();
             int hue = color & 0xFFFFFF;
-            fill.setShader(new LinearGradient(0, 0, 0, h, mix(0x2EFFFFFF, 0xA6000000 | hue),
-                    mix(0x00FFFFFF, 0x14000000 | hue), Shader.TileMode.CLAMP));
-            edge.setShader(new LinearGradient(0, 0, 0, h, mix(0x99FFFFFF, 0xF2FFFFFF),
-                    mix(0x1FFFFFFF, 0xCC000000 | hue), Shader.TileMode.CLAMP));
+            // Quiet at rest so the posters lead; lit on focus.
+            fill.setShader(new LinearGradient(0, 0, 0, h, mix(0x14FFFFFF, 0x8C000000 | hue),
+                    mix(0x00FFFFFF, 0x10000000 | hue), Shader.TileMode.CLAMP));
+            edge.setShader(new LinearGradient(0, 0, 0, h, mix(0x8CFFFFFF, 0xE6FFFFFF),
+                    mix(0x14FFFFFF, 0xB3000000 | hue), Shader.TileMode.CLAMP));
             float base = h - edge.getStrokeWidth();
             c.drawText(n, inset, base, fill);
             c.drawText(n, inset, base, edge);
