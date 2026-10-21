@@ -53,6 +53,13 @@ public class HomeService extends AccessibilityService {
     private boolean settingsMode;       // user is in Amazon's Settings tab on purpose
     private long settingsSince;
     private final Runnable settingsWatch = this::checkSettings;
+    // Alexa voice searches show Amazon's results page; read what was said and search here instead.
+    private static final String VOICE_RESULTS = "SearchResultsActivity";
+    private final Runnable voiceWatch = this::readVoiceQuery;
+    private int voiceTries;
+    private AccessibilityNodeInfo voicePage; // Amazon's results window, held: the cover takes focus over it
+    private String lastVoice = "";
+    private long lastVoiceAt;
 
     @Override
     protected void onServiceConnected() {
@@ -91,6 +98,16 @@ public class HomeService extends AccessibilityService {
         if (!pkg.equals(AMAZON_HOME)) return;
         // Only its home screen; its other screens (app library, search) open normally.
         CharSequence cls = e.getClassName();
+        if (cls != null && cls.toString().contains(VOICE_RESULTS)) {
+            // Cover Amazon's page at once and read what was said from underneath the cover.
+            if (voicePage != null) voicePage.recycle();
+            voicePage = getRootInActiveWindow();
+            voiceTries = 0;
+            showMask();
+            handler.removeCallbacks(voiceWatch);
+            handler.post(voiceWatch);
+            return;
+        }
         if (cls == null || !cls.toString().contains("HomeActivity")) return;
         Log.i(TAG, "amazon home surfaced: " + cls);
         bounce();
@@ -147,6 +164,44 @@ public class HomeService extends AccessibilityService {
         // The Amazon launcher holds ~130 MB; reclaim it once it's behind us (after the 5 s guard).
         ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         handler.postDelayed(() -> am.killBackgroundProcesses(AMAZON_HOME), 8000);
+    }
+
+    /** The page puts the words as heard ("search for mirzapur") at the top; it may take a moment to fill. */
+    private void readVoiceQuery() {
+        String said = null;
+        if (voicePage != null && voicePage.refresh()) {
+            for (AccessibilityNodeInfo n : voicePage.findAccessibilityNodeInfosByViewId(AMAZON_HOME + ":id/search_text")) {
+                if (said == null && n.getText() != null) said = n.getText().toString();
+                n.recycle();
+            }
+        }
+        if (said == null || said.trim().isEmpty()) {
+            if (++voiceTries < 12) handler.postDelayed(voiceWatch, 250);
+            else endVoice(true);
+            return;
+        }
+        String q = Search.spokenQuery(said);
+        long now = SystemClock.uptimeMillis();
+        // The same words again straight away is Amazon's page resurfacing, not a new search.
+        if (q.isEmpty() || (q.equalsIgnoreCase(lastVoice) && now - lastVoiceAt < 8000)) { endVoice(true); return; }
+        endVoice(false);
+        lastVoice = q;
+        lastVoiceAt = now;
+        Log.i(TAG, "voice search: " + q);
+        // Same path as the Home bounce: under the cover, an alarm starts the search.
+        Intent i = new Intent(this, Search.class).putExtra(Search.QUERY, q).putExtra(Search.FROM_VOICE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pi = PendingIntent.getActivity(this, 1, i, PendingIntent.FLAG_UPDATE_CURRENT,
+                ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle());
+        long delay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? COVER_DRAWN_MS : 0;
+        getSystemService(AlarmManager.class).setExact(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, pi);
+    }
+
+    /** Done with Amazon's page; with nothing to search, take the cover down and leave it showing. */
+    private void endVoice(boolean uncover) {
+        if (voicePage != null) voicePage.recycle();
+        voicePage = null;
+        if (uncover) removeMask();
     }
 
     private static PendingIntent launch(Context c) {

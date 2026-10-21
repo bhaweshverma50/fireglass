@@ -297,7 +297,7 @@ final class Look {
 
     /** Line icons drawn in code (no emoji glyphs): Wi-Fi and a gear. */
     static final class Icon extends Drawable {
-        static final int WIFI = 0, GEAR = 1, PLAY = 2, RECENTS = 3;
+        static final int WIFI = 0, GEAR = 1, PLAY = 2, RECENTS = 3, SEARCH = 4;
         private final int kind, size;
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF arc = new RectF();
@@ -325,6 +325,16 @@ final class Look {
                 p.setStyle(Paint.Style.FILL);
                 arc.set(b.left + s * 0.06f, b.top + s * 0.34f, b.right - s * 0.28f, b.bottom - s * 0.1f);
                 c.drawRoundRect(arc, r, r, p);
+                return;
+            }
+            if (kind == SEARCH) {
+                // A lens and its handle.
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(s * 0.12f);
+                float r = s * 0.29f, lx = b.left + s * 0.42f, ly = b.top + s * 0.42f;
+                c.drawCircle(lx, ly, r, p);
+                float h = r * 0.7071f;
+                c.drawLine(lx + h, ly + h, b.right - s * 0.1f, b.bottom - s * 0.1f, p);
                 return;
             }
             if (kind == PLAY) {

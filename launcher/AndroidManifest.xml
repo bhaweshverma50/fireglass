@@ -55,6 +55,14 @@
         </activity>
 
         <activity
+            android:name=".Search"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
+
+        <activity
             android:name=".HomeSettings"
             android:exported="false"
             android:screenOrientation="landscape"

@@ -459,10 +459,12 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         capsule.addView(row, new FrameLayout.LayoutParams(-2, dp(36)));
         wifiIcon = new Look.Icon(Look.Icon.WIFI, dp(15));
+        TextView search = navItem("Search", new Look.Icon(Look.Icon.SEARCH, dp(15)), () -> startActivity(new Intent(this, Search.class)));
         TextView recents = navItem("Apps in use", new Look.Icon(Look.Icon.RECENTS, dp(15)), this::showSwitcher);
         wifiItem = navItem("Wi-Fi", wifiIcon, () -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS)));
         TextView[] settings = new TextView[1];
         settings[0] = navItem("Settings", new Look.Icon(Look.Icon.GEAR, dp(15)), () -> showSettings(settings[0]));
+        row.addView(search, new LinearLayout.LayoutParams(-2, -1));
         row.addView(recents, new LinearLayout.LayoutParams(-2, -1));
         row.addView(wifiItem, new LinearLayout.LayoutParams(-2, -1));
         row.addView(settings[0], new LinearLayout.LayoutParams(-2, -1));

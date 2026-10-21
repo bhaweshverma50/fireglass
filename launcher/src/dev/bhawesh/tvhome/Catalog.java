@@ -237,6 +237,46 @@ final class Catalog {
         return new String[]{id, thumb};
     }
 
+    /**
+     * YouTube's own results for {@code query}, from the ytInitialData its results page carries:
+     * [{id, title, channel, length, thumb}]. Fire TV's YouTube app has no search link to hand off to.
+     */
+    static JSONArray youTubeSearch(String query, int n) throws Exception {
+        String html = Net.get("https://www.youtube.com/results?hl=en&search_query=" + java.net.URLEncoder.encode(query, "UTF-8"));
+        int at = html.indexOf("var ytInitialData = "), end = at < 0 ? -1 : html.indexOf(";</script>", at);
+        JSONArray out = new JSONArray();
+        if (end < 0) return out;
+        JSONArray sections = new JSONObject(html.substring(at + "var ytInitialData = ".length(), end))
+                .getJSONObject("contents").getJSONObject("twoColumnSearchResultsRenderer").getJSONObject("primaryContents")
+                .getJSONObject("sectionListRenderer").getJSONArray("contents");
+        for (int i = 0; i < sections.length() && out.length() < n; i++) {
+            JSONObject isr = sections.getJSONObject(i).optJSONObject("itemSectionRenderer");
+            JSONArray items = isr == null ? null : isr.optJSONArray("contents");
+            for (int k = 0; items != null && k < items.length() && out.length() < n; k++) {
+                JSONObject v = items.getJSONObject(k).optJSONObject("videoRenderer");
+                if (v == null) continue;
+                JSONArray thumbs = v.getJSONObject("thumbnail").getJSONArray("thumbnails");
+                JSONObject owner = v.optJSONObject("ownerText"), len = v.optJSONObject("lengthText");
+                out.put(new JSONObject().put("id", v.getString("videoId"))
+                        .put("title", v.getJSONObject("title").getJSONArray("runs").getJSONObject(0).optString("text"))
+                        .put("channel", owner == null ? "" : owner.getJSONArray("runs").getJSONObject(0).optString("text"))
+                        .put("length", len == null ? "" : len.optString("simpleText"))
+                        .put("thumb", thumbs.getJSONObject(thumbs.length() - 1).getString("url")));
+            }
+        }
+        return out;
+    }
+
+    static boolean playYouTubeVideo(Context c, String id) {
+        try {
+            c.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + id))
+                    .setPackage(YOUTUBE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     /** Search YouTube's site for {@code query} and play the top video in the YouTube app. */
     static JSONObject playYouTube(Context c, String query) throws Exception {
         String[] hit = youTubeHit(query);
