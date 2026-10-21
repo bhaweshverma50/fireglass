@@ -3,14 +3,14 @@
     "name": "TV Home Remote",
     "slug": "tv-home-remote",
     "scheme": "tvhomeremote",
-    "version": "1.3.0",
+    "version": "1.3.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#070B1F",
     "ios": {
       "bundleIdentifier": "dev.bhawesh.tvhomeremote",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Finds your TV on this Wi-Fi network and sends it remote presses.",
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "dev.bhawesh.tvhomeremote",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#070B1F",
         "foregroundImage": "./assets/android-icon-foreground.png",

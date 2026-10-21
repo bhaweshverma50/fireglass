@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs>
+  <radialGradient id="sky1" cx="18%" cy="12%" r="80%"><stop offset="0" stop-color="#2E3A8C"/><stop offset="1" stop-color="#2E3A8C" stop-opacity="0"/></radialGradient>
+  <radialGradient id="sky2" cx="96%" cy="40%" r="62%"><stop offset="0" stop-color="#6E3FB8" stop-opacity=".9"/><stop offset="1" stop-color="#6E3FB8" stop-opacity="0"/></radialGradient>
+  <radialGradient id="sky3" cx="10%" cy="100%" r="60%"><stop offset="0" stop-color="#1B6F8A" stop-opacity=".75"/><stop offset="1" stop-color="#1B6F8A" stop-opacity="0"/></radialGradient>
+  <radialGradient id="emberGlow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FF8A4C" stop-opacity=".95"/><stop offset=".45" stop-color="#FF4F7B" stop-opacity=".45"/><stop offset="1" stop-color="#6E3FB8" stop-opacity="0"/></radialGradient>
+  <linearGradient id="frost" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2F4FF" stop-opacity=".62"/><stop offset=".5" stop-color="#B9C4FF" stop-opacity=".2"/><stop offset="1" stop-color="#FFB894" stop-opacity=".42"/></linearGradient>
+  <linearGradient id="rim" x1=".2" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".45" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#FFD9C2" stop-opacity=".7"/></linearGradient>
+  <linearGradient id="core" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF1CF"/><stop offset=".45" stop-color="#FFB15E"/><stop offset="1" stop-color="#FF5A6E"/></linearGradient>
+  <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <filter id="b60" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="60"/></filter>
+  <filter id="b10" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter>
+  <path id="flame" d="M548 168 C 690 300 778 430 770 586 C 762 742 650 856 512 856 C 374 856 262 748 256 604 C 251 492 306 410 384 354 C 380 432 404 486 452 508 C 430 392 462 262 548 168 Z"/>
+  <path id="coreP" d="M520 470 C 596 540 640 610 634 690 C 628 762 576 806 512 806 C 448 806 396 762 392 698 C 388 642 418 596 462 568 C 462 616 478 642 500 650 C 488 588 494 524 520 470 Z"/>
+  <clipPath id="fc"><use href="#flame"/></clipPath>
+<filter id="b18" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
+  <radialGradient id="spec" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="tip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFBEF"/><stop offset="1" stop-color="#FFE0A0" stop-opacity="0"/></linearGradient>
+<g id="fg-sky-art"><rect width="1024" height="1024" fill="#070B1F"/>
+<rect width="1024" height="1024" fill="url(#sky1)"/><rect width="1024" height="1024" fill="url(#sky2)"/><rect width="1024" height="1024" fill="url(#sky3)"/></g></defs><use href="#fg-sky-art"/>
+<ellipse cx="512" cy="700" rx="300" ry="240" fill="url(#emberGlow)" opacity=".8"/>
+<use href="#flame" fill="#E8ECFF" fill-opacity=".78"/>
+<use href="#coreP" fill="url(#core)"/>
+<use href="#flame" fill="none" stroke="#fff" stroke-width="22"/></svg>

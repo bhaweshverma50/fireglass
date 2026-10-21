@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/fireglass-icon.png" width="128" height="128" alt="Fireglass icon: a frosted-glass flame with an ember inside, on a night sky"></p>
+
 # Fireglass
 
 **A fast, beautiful home screen for the Amazon Fire TV Stick, and a phone app that runs it.**
@@ -177,6 +179,7 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 | [launcher/](launcher/) | The TV app. Plain Android Java, no Gradle, about 175 KB |
 | [phone/](phone/) | The phone app. Expo / React Native, with `llama.rn` for the on-device model and a mock TV for development |
 | [docs/remote-api.md](docs/remote-api.md) | The LAN API between them |
+| [brand/](brand/) | The icon as SVG masters, and `export.py`, which renders every app icon, banner and social image from them |
 | [examples/](examples/) | Debloat lists (Fire TV Stick 3rd gen, and the original TCL Google TV one) |
 | [tools/](tools/) | ADB helpers from tv-home (Python ADB client, find-tv, type) |
 

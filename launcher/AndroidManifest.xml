@@ -30,9 +30,9 @@
     </queries>
 
     <application
-        android:label="Home"
-        android:icon="@drawable/ic_home"
-        android:banner="@drawable/ic_home"
+        android:label="Fireglass"
+        android:icon="@drawable/fg_icon"
+        android:banner="@drawable/fg_banner"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:theme="@style/Home">
@@ -77,7 +77,7 @@
         <service
             android:name=".Screensaver"
             android:exported="true"
-            android:label="Home"
+            android:label="Fireglass"
             android:permission="android.permission.BIND_DREAM_SERVICE">
             <intent-filter>
                 <action android:name="android.service.dreams.DreamService" />
