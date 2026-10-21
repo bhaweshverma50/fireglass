@@ -135,6 +135,16 @@ final class Look {
             update(c);
         }
 
+        /** Over a photo: brighter secondary lines and a tighter, darker shadow so each letter holds its edge. */
+        void onPhoto(Context c, boolean photo) {
+            date.setTextColor(photo ? 0xE6FFFFFF : 0x99FFFFFF);
+            weather.setTextColor(photo ? 0xE6FFFFFF : 0x99FFFFFF);
+            ampm.setTextColor(photo ? 0xE6FFFFFF : 0xB3FFFFFF);
+            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather}) {
+                t.setShadowLayer(dp(c, photo ? 5 : 12), 0, dp(c, 1), photo ? 0xD9000000 : 0x66000000);
+            }
+        }
+
         void update(Context c) {
             Calendar now = Calendar.getInstance();
             int h = now.get(Calendar.HOUR_OF_DAY);
@@ -250,6 +260,7 @@ final class Look {
         private final Paint band = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.Path clip = new android.graphics.Path();
         private float sweep = -1f; // 0..1 while a band of light runs across; -1 for none
+        private final Paint smoke = new Paint(Paint.ANTI_ALIAS_FLAG); // dark base, for glass over a photo
 
         Glass(float radius, float strength) {
             this.radius = radius;
@@ -271,12 +282,19 @@ final class Look {
             clip.addRoundRect(r, radius, radius, android.graphics.Path.Direction.CW);
         }
 
+        /** A dark base under the frost (0 none, 1 near opaque): white frost alone adds no contrast over a bright photo. */
+        void setSmoke(float f) {
+            smoke.setColor(Color.argb(Math.round(0xE6 * f), 0x0C, 0x0C, 0x10));
+            invalidateSelf();
+        }
+
         void setSweep(float f) {
             sweep = f;
             invalidateSelf();
         }
 
         @Override public void draw(Canvas c) {
+            if (smoke.getAlpha() > 0) c.drawRoundRect(r, radius, radius, smoke);
             c.drawRoundRect(r, radius, radius, body);
             if (sweep >= 0f) {
                 float w = r.width() * 0.3f, x = r.left - w + (r.width() + w) * sweep;

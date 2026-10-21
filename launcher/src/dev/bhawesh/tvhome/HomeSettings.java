@@ -70,6 +70,8 @@ public class HomeSettings extends Activity {
     };
 
     private SkyView sky, previewSky;
+    private View dim;
+    private Look.Glass panelGlass;
     private Preview preview;
     private TextView about, aboutTitle;
     private View puck;
@@ -86,8 +88,7 @@ public class HomeSettings extends Activity {
         sky.setAccent(MainActivity.accent, 0.4f, false);
         root.addView(sky, new FrameLayout.LayoutParams(-1, -1));
         // Settings are read, not admired: dim the sky so the text carries.
-        View dim = new View(this);
-        dim.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xB3000000, 0x8C000000, 0x99000000}));
+        dim = new View(this);
         root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
 
         root.addView(buildLeft(), leftLp());
@@ -96,6 +97,7 @@ public class HomeSettings extends Activity {
         rp.setMargins(0, 0, dp(Look.PAD_X), 0);
         root.addView(list, rp);
         setContentView(root);
+        legible(get(this, LOOK));
 
         View[] parts = {root.getChildAt(2), list};
         for (int i = 0; i < parts.length; i++) {
@@ -151,7 +153,8 @@ public class HomeSettings extends Activity {
     /** One glass panel: group headers and rows, with a white highlight that slides to the focused row. */
     private FrameLayout buildList() {
         FrameLayout panel = new FrameLayout(this);
-        panel.setBackground(new Look.Glass(dp(24), 0.8f));
+        panelGlass = new Look.Glass(dp(24), 0.8f);
+        panel.setBackground(panelGlass);
         int pad = dp(10);
         panel.setPadding(pad, pad, pad, pad);
         puck = new View(this);
@@ -234,7 +237,7 @@ public class HomeSettings extends Activity {
                 value.setAlpha(0.3f);
                 value.animate().translationX(0f).alpha(1f).setDuration(Look.ms(this, 220)).start();
             }
-            if (r.key.equals(LOOK)) { sky.setLook(next); previewSky.setLook(next); }
+            if (r.key.equals(LOOK)) { sky.setLook(next); previewSky.setLook(next); legible(next); }
             if (r.key.equals(STYLE) || r.key.equals(RECENT) || r.key.equals(WEATHER)) preview.invalidate();
             if (r.key.equals(SAVER)) Screensaver.apply(this);
             if (r.key.equals(MOTION) || r.key.equals(SAVER)) preview.restart();
@@ -255,6 +258,14 @@ public class HomeSettings extends Activity {
             puck.animate().translationY(y).setDuration(Look.ms(this, 260))
                     .setInterpolator(new android.view.animation.OvershootInterpolator(0.9f)).start();
         }
+    }
+
+    /** Over a wallpaper the sky is a photo: dim it more and smoke the panel so the settings read. */
+    private void legible(int look) {
+        boolean photo = look == SkyView.WALLPAPER;
+        dim.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, photo
+                ? new int[]{0xE0000000, 0xB3000000, 0xC7000000} : new int[]{0xB3000000, 0x8C000000, 0x99000000}));
+        panelGlass.setSmoke(photo ? 0.8f : 0f);
     }
 
     @Override protected void onResume() { super.onResume(); sky.setRunning(true); previewSky.setRunning(true); }

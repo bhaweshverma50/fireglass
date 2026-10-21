@@ -906,6 +906,9 @@ public class MainActivity extends Activity {
         minimal = HomeSettings.get(this, HomeSettings.STYLE) == HomeSettings.STYLE_MINIMAL;
         calm = HomeSettings.get(this, HomeSettings.MOTION) == 1;
         sky.setLook(HomeSettings.get(this, HomeSettings.LOOK));
+        boolean photo = HomeSettings.get(this, HomeSettings.LOOK) == SkyView.WALLPAPER;
+        bar.onPhoto(this, photo);
+        appTitle.setShadowLayer(dp(photo ? 8 : 16), 0, dp(1), photo ? 0xCC000000 : 0x66000000);
         bar.weather.setVisibility(HomeSettings.get(this, HomeSettings.WEATHER) == 1 ? View.VISIBLE : View.GONE);
         applyNavStyle();
         info.setVisibility(minimal ? View.GONE : View.VISIBLE);

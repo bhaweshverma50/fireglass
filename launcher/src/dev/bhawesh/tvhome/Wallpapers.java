@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
 import android.media.ExifInterface;
@@ -167,7 +168,12 @@ final class Wallpapers {
         return null;
     }
 
-    /** Screen-sized, darkened at the top and bottom where the clock and the apps sit, then moved to the GPU. */
+    /**
+     * Screen-sized, then moved to the GPU. Darkened where words sit over it, baked in so it costs
+     * nothing per frame: bands at the top and bottom, and soft shade behind the clock and date (top
+     * left), the top bar (top right) and the app's or title's name over the apps (bottom left).
+     * The middle of the picture keeps its colour.
+     */
     private static Bitmap bake(File f) {
         Bitmap src = decode(f, W, H);
         if (src == null) return null;
@@ -175,13 +181,27 @@ final class Wallpapers {
         src.recycle();
         Canvas cv = new Canvas(b);
         Paint p = new Paint();
-        p.setShader(new LinearGradient(0, 0, 0, H, new int[]{0x8C000000, 0x14000000, 0x14000000, 0xB3000000},
-                new float[]{0f, 0.3f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(0, 0, 0, H, new int[]{0x99000000, 0x1F000000, 0x1F000000, 0x8C000000, 0xD9000000},
+                new float[]{0f, 0.28f, 0.45f, 0.68f, 1f}, Shader.TileMode.CLAMP));
         cv.drawRect(0, 0, W, H, p);
+        shade(cv, W * 0.17f, H * 0.09f, W * 0.46f, 0xB3);
+        shade(cv, W * 0.86f, H * 0.08f, W * 0.24f, 0x73);
+        shade(cv, W * 0.14f, H * 0.62f, W * 0.40f, 0x8C);
         Bitmap gpu = b.copy(Bitmap.Config.HARDWARE, false);
         if (gpu == null) return b;
         b.recycle();
         return gpu;
+    }
+
+    /** A soft oval of shade, twice as wide as tall, fading out from {@code alpha} at its centre. */
+    private static void shade(Canvas cv, float cx, float cy, float r, int alpha) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setShader(new RadialGradient(cx, cy, r, new int[]{alpha << 24, (alpha / 2) << 24, 0},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        cv.save();
+        cv.scale(1f, 0.5f, cx, cy);
+        cv.drawCircle(cx, cy, r, p);
+        cv.restore();
     }
 
     // ---------------------------------------------------------------- decoding
