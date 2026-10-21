@@ -119,7 +119,11 @@ public class Watching extends NotificationListenerService {
             if (now == null || now.getState() != PlaybackState.STATE_PLAYING || still == null
                     || !still[0].equals(item[0]) || !still[1].equals(item[1])) return;
             String pkg = mc.getPackageName();
-            new Thread(() -> Catalog.watched(this, pkg, item[0], item[1]), "watched").start();
+            String uri = item[0].isEmpty() && Catalog.HOTSTAR.equals(pkg) ? nm.getString(MediaMetadata.METADATA_KEY_MEDIA_URI) : null;
+            new Thread(() -> {
+                String[] hs = Catalog.hotstarShow(uri);
+                Catalog.watched(this, pkg, hs != null ? hs[0] : item[0], item[1], hs != null ? hs[1] : null);
+            }, "watched").start();
         }, mc, android.os.SystemClock.uptimeMillis() + WATCHED_AFTER_MS);
     }
 
@@ -153,7 +157,11 @@ public class Watching extends NotificationListenerService {
         for (String k : m.keySet()) {
             CharSequence v = m.getText(k);
             // Skip links: JioHotstar's MEDIA_URI is a signed stream URL with the account's token in it.
-            if (v != null && !k.endsWith("_URI")) sb.append(k.replace("android.media.metadata.", "")).append('=').append(v).append("; ");
+            String name = k.replace("android.media.metadata.", "");
+            android.graphics.Bitmap bm = m.getBitmap(k);
+            if (bm != null) sb.append(name).append("=<").append(bm.getWidth()).append('x').append(bm.getHeight()).append(">; ");
+            else if (v != null && !k.endsWith("_URI")) sb.append(name).append('=').append(v).append("; ");
+            else if (v == null) sb.append(name).append("; ");
         }
         return sb.toString();
     }

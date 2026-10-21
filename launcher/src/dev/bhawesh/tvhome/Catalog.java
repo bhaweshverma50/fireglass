@@ -180,6 +180,7 @@ final class Catalog {
 
     /** Resolve a title (by id, else by name), open it in the given app or the first one that has it. */
     static final String YOUTUBE = "com.amazon.firetv.youtube";
+    static final String HOTSTAR = "in.startv.hotstar";
 
     static JSONObject play(Context c, String id, String title, String pkg) throws Exception {
         // YouTube isn't in the catalogue (and its TV app ignores search links): find the video here.
@@ -281,7 +282,7 @@ final class Catalog {
      * Something played for a minute in {@code pkg} (from Watching): find it on JustWatch for art
      * and a link back into the same app, and put it first in history. Kept even without a match.
      */
-    static void watched(Context c, String pkg, String show, String episode) {
+    static void watched(Context c, String pkg, String show, String episode, String art) {
         try {
             // No show name (JioHotstar reports only "S1 E6 Bad Optics"): one card per app, opening the app.
             JSONObject hit = show.isEmpty() ? null : match(c, pkg, show);
@@ -290,6 +291,7 @@ final class Catalog {
                             .put("offers", new JSONArray().put(new JSONObject().put("pkg", pkg).put("label", label(c, pkg, pkg))));
             if (show.isEmpty()) episode = "";
             if (!episode.isEmpty()) entry.put("episode", episode);
+            if (hit == null && art != null) entry.put("thumb", art).put("backdrop", art);
             if (hit == null && YOUTUBE.equals(pkg)) youTubeArt(entry, episode.isEmpty() ? show : episode + " " + show);
             remember(c, entry, pkg);
             Log.i(TAG, "watched " + entry.optString("title") + (episode.isEmpty() ? "" : " / " + episode) + " on " + pkg + (hit == null ? " (no match)" : ""));
@@ -316,15 +318,54 @@ final class Catalog {
      */
     static void watchedCard(Context c, String pkg, String text) {
         try {
-            if (match(c, pkg, text) != null) { watched(c, pkg, text, ""); return; }
+            if (match(c, pkg, text) != null) { watched(c, pkg, text, "", null); return; }
             for (int i = text.indexOf(", "); i > 0; i = text.indexOf(", ", i + 2)) {
-                if (match(c, pkg, text.substring(0, i)) != null) { watched(c, pkg, text.substring(0, i), text.substring(i + 2)); return; }
+                if (match(c, pkg, text.substring(0, i)) != null) { watched(c, pkg, text.substring(0, i), text.substring(i + 2), null); return; }
             }
         } catch (Exception e) {
             Log.w(TAG, "card " + text, e);
         }
         int i = text.indexOf(", ");
-        watched(c, pkg, i > 0 ? text.substring(0, i) : text, i > 0 ? text.substring(i + 2) : "");
+        watched(c, pkg, i > 0 ? text.substring(0, i) : text, i > 0 ? text.substring(i + 2) : "", null);
+    }
+
+    /**
+     * JioHotstar's player names only the episode, but the path of its stream URL holds the show's and
+     * the episode's content ids (/videos/hbo/episode6/1271680756/1271697860/…), and Hotstar's content
+     * API names them. Only the ids are sent, never the URL: it carries the account's token.
+     * {show, picture URL or null}, or null.
+     */
+    static String[] hotstarShow(String mediaUri) {
+        if (mediaUri == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("/(\\d{8,})(?=/)").matcher(String.valueOf(Uri.parse(mediaUri).getPath()));
+        StringBuilder ids = new StringBuilder();
+        while (m.find()) ids.append(ids.length() == 0 ? "" : ",").append(m.group(1));
+        if (ids.length() == 0) return null;
+        try {
+            HttpURLConnection h = (HttpURLConnection) new URL("https://api.hotstar.com/o/v1/multi/get/content?ids=" + ids).openConnection();
+            h.setConnectTimeout(8000);
+            h.setReadTimeout(12000);
+            h.setRequestProperty("x-country-code", "IN");
+            h.setRequestProperty("x-platform-code", "PCTV");
+            JSONObject map;
+            try (InputStream in = h.getInputStream()) {
+                map = new JSONObject(readAll(in)).getJSONObject("body").getJSONObject("results").getJSONObject("map");
+            } finally {
+                h.disconnect();
+            }
+            for (java.util.Iterator<String> k = map.keys(); k.hasNext(); ) {
+                JSONObject ep = map.getJSONObject(k.next());
+                String show = ep.optString("showName");
+                if (show.isEmpty()) continue;
+                JSONObject s = map.optJSONObject(ep.optString("showContentId"));
+                JSONObject img = (s != null ? s : ep).optJSONObject("images");
+                String h16x9 = img == null ? "" : img.optString("h");
+                return new String[]{show, h16x9.isEmpty() ? null : "https://img1.hotstarext.com/image/upload/f_auto,t_web_hs_2x/" + h16x9};
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "hotstar show: " + e);
+        }
+        return null;
     }
 
     /** History, newest first, one entry per title; {@code pkg} is the app it was watched or opened in. */
