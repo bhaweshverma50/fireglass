@@ -82,10 +82,10 @@ export default function Settings() {
       <Glass radius={R.lg} style={{ padding: 18, gap: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Info size={18} color={C.dim} />
-          <Txt v="heading">TV Home Remote {Constants.expoConfig?.version ?? ''}</Txt>
+          <Txt v="heading">Fireglass {Constants.expoConfig?.version ?? ''}</Txt>
         </View>
         <Txt v="body" color={C.dim}>
-          A remote for the TV Home launcher. It talks to your TV over your Wi-Fi only, and the assistant runs on this phone.
+          The remote for Fireglass on your Fire TV. It talks to your TV over your Wi-Fi only, and the assistant runs on this phone.
         </Txt>
         <Txt v="caption" color={C.faint}>
           Type: Instrument Serif and Figtree (SIL Open Font License). Models: Qwen2.5 (Apache 2.0), LFM2.5 (LFM Open License 1.0),
