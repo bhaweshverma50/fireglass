@@ -283,24 +283,48 @@ final class Catalog {
      */
     static void watched(Context c, String pkg, String show, String episode) {
         try {
-            JSONObject hit = null;
-            JSONArray found = search(c, show, 5);
-            for (int i = 0; i < found.length() && hit == null; i++) {
-                JSONObject t = found.getJSONObject(i);
-                if (!t.getString("title").equalsIgnoreCase(show)) continue;
-                JSONArray o = t.getJSONArray("offers");
-                for (int k = 0; k < o.length(); k++) if (pkg.equals(o.getJSONObject(k).optString("pkg"))) hit = t;
-            }
+            // No show name (JioHotstar reports only "S1 E6 Bad Optics"): one card per app, opening the app.
+            JSONObject hit = show.isEmpty() ? null : match(c, pkg, show);
             JSONObject entry = hit != null ? new JSONObject(hit.toString())
-                    : new JSONObject().put("id", "app:" + pkg + ":" + show).put("title", show)
+                    : new JSONObject().put("id", "app:" + pkg + ":" + show).put("title", show.isEmpty() ? episode : show)
                             .put("offers", new JSONArray().put(new JSONObject().put("pkg", pkg).put("label", label(c, pkg, pkg))));
+            if (show.isEmpty()) episode = "";
             if (!episode.isEmpty()) entry.put("episode", episode);
             if (hit == null && YOUTUBE.equals(pkg)) youTubeArt(entry, episode.isEmpty() ? show : episode + " " + show);
             remember(c, entry, pkg);
-            Log.i(TAG, "watched " + show + (episode.isEmpty() ? "" : " / " + episode) + " on " + pkg + (hit == null ? " (no match)" : ""));
+            Log.i(TAG, "watched " + entry.optString("title") + (episode.isEmpty() ? "" : " / " + episode) + " on " + pkg + (hit == null ? " (no match)" : ""));
         } catch (Exception e) {
             Log.w(TAG, "watched " + show, e);
         }
+    }
+
+    /** The catalogue title named exactly {@code show} that {@code pkg} offers, or null. */
+    private static JSONObject match(Context c, String pkg, String show) throws IOException, JSONException {
+        JSONArray found = search(c, show, 5);
+        for (int i = 0; i < found.length(); i++) {
+            JSONObject t = found.getJSONObject(i);
+            if (!t.getString("title").equalsIgnoreCase(show)) continue;
+            JSONArray o = t.getJSONArray("offers");
+            for (int k = 0; k < o.length(); k++) if (pkg.equals(o.getJSONObject(k).optString("pkg"))) return t;
+        }
+        return null;
+    }
+
+    /**
+     * An app's continue-watching card says "Gilmore Girls, A Family Matter" (show, episode) or just a
+     * film's name. Titles can hold commas too, so take the split the catalogue recognises.
+     */
+    static void watchedCard(Context c, String pkg, String text) {
+        try {
+            if (match(c, pkg, text) != null) { watched(c, pkg, text, ""); return; }
+            for (int i = text.indexOf(", "); i > 0; i = text.indexOf(", ", i + 2)) {
+                if (match(c, pkg, text.substring(0, i)) != null) { watched(c, pkg, text.substring(0, i), text.substring(i + 2)); return; }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "card " + text, e);
+        }
+        int i = text.indexOf(", ");
+        watched(c, pkg, i > 0 ? text.substring(0, i) : text, i > 0 ? text.substring(i + 2) : "");
     }
 
     /** History, newest first, one entry per title; {@code pkg} is the app it was watched or opened in. */
