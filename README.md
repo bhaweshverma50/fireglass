@@ -25,14 +25,22 @@ Stick 4K Max). On the 3rd gen stick:
   SonyLIV, Apple TV, Crunchyroll) with art, facts and a two-line synopsis. Rest on an app and it
   narrows to that app's titles, like Apple TV's top shelf. "Open in Netflix" goes straight to
   the title inside the app.
-- **One row of apps**, then poster rows: **Recently watched** (tracked across apps, with the app
-  and episode) and **Trending on <app>** for each app.
+- **One row of apps**, then **Recently watched** (tracked across apps, with the app and
+  episode: Netflix and JioHotstar included) and a ranked **Trending on <app>** row for each app,
+  Top 10 style: posters with their rank as a big serif numeral that lights up in the app's
+  colour.
+- **Search**, in the top bar: type with the Fire TV keyboard, or just ask Alexa. Results from the
+  apps on this TV come first, then YouTube's own results. Alexa voice searches land here instead
+  of on Amazon's results page.
+- **Offline, calmly.** Without internet the home keeps working on what it saved, says so, offers
+  Wi-Fi settings, and refreshes by itself once the TV is back online.
 - **A live sky** behind everything that follows the time of day, a fixed colour wash, or one of
   your own pictures.
 - **Apps in use**: a phone-style switcher. Switch to an app, push one away to close it, or
   close them all.
-- **Customise home**: Featured or Minimal style, background, which rows show, weather, calm
-  motion, and the screensaver, each previewed live as you change it.
+- **Customise home**: Featured or Minimal style, background, a top bar of labels or just icons
+  (the name shows under the one you're on), which rows show, weather, calm motion, and the
+  screensaver, each previewed live as you change it.
 - **Screensavers**: a drifting clock, trending posters, your photos, the sky, or a different
   one each time.
 - **Settings that work.** Fire OS hides most settings behind Amazon's home; Fireglass opens the
@@ -40,8 +48,9 @@ Stick 4K Max). On the 3rd gen stick:
 
 | | |
 |---|---|
-| ![Rows](docs/screenshots/tv-home-rows.jpg) | ![Apps in use](docs/screenshots/tv-apps-in-use.jpg) |
-| ![Customise home](docs/screenshots/tv-customise-home.jpg) | ![Clock screensaver](docs/screenshots/tv-screensaver-clock.jpg) |
+| ![Recently watched and ranked trending rows](docs/screenshots/tv-home-rows.jpg) | ![Search](docs/screenshots/tv-search.jpg) |
+| ![Your own picture as the background, with the top bar as icons](docs/screenshots/tv-home-wallpaper.jpg) | ![Customise home](docs/screenshots/tv-customise-home.jpg) |
+| ![Apps in use](docs/screenshots/tv-apps-in-use.jpg) | ![Offline](docs/screenshots/tv-offline.jpg) |
 
 **On your phone** (Android, iOS)
 
@@ -53,11 +62,12 @@ Stick 4K Max). On the 3rd gen stick:
   resumes something.
 - **Apps** and **Discover**: open any app, browse trending titles, tap to play on the TV.
 - **Wallpapers**: send pictures from your phone to the TV for the Photos screensaver, and pick
-  one as the home background. The TV crops and resizes each to 1920x1080.
+  one as the home background. The TV crops and resizes each to 1920x1080, and shades it softly
+  where the clock and names sit so they stay readable.
 
-| | | | |
-|---|---|---|---|
-| ![Remote](docs/screenshots/phone-remote.jpg) | ![Assistant](docs/screenshots/phone-assistant.jpg) | ![Discover](docs/screenshots/phone-discover.jpg) | ![Apps](docs/screenshots/phone-apps.jpg) |
+| | | | | |
+|---|---|---|---|---|
+| ![Remote](docs/screenshots/phone-remote.jpg) | ![Assistant](docs/screenshots/phone-assistant.jpg) | ![Discover](docs/screenshots/phone-discover.jpg) | ![Apps](docs/screenshots/phone-apps.jpg) | ![Wallpapers](docs/screenshots/phone-wallpapers.jpg) |
 
 ## How it works
 
@@ -83,7 +93,15 @@ A few Fire OS walls and how Fireglass gets round them:
   network ADB once per boot. After that it injects in about a millisecond, where
   `input keyevent` takes 770 ms.
 - **There's no cross-app watch history on Fire OS.** Apps do publish "now playing" for Alexa, so a
-  notification listener reads it. Anything that plays for a minute is kept, with its app.
+  notification listener reads it. Anything that plays for a minute is kept, with its app. Not
+  every app says enough: Netflix names nothing while playing, but its "Continue watching" card for
+  Amazon's home does, and the listener reads that. JioHotstar names only the episode, so the show
+  comes from the content ids in its stream's path, looked up on Hotstar's content API (only the
+  ids are sent; the stream URL carries your account's token).
+- **Alexa's searches open Amazon's results page.** Its first line is what Alexa heard ("search for
+  mirzapur"); the accessibility service covers the page, reads that, and opens Fireglass Search
+  with the rest. Fire TV's YouTube app takes no search links, so YouTube results come from
+  youtube.com's results page and open as videos.
 - **The GPU is tiny.** Every full-screen blended layer costs 5–8 ms a frame on this Mali, so the
   featured picture is baked once into a hardware bitmap and nothing redraws the whole screen while
   you move.
@@ -94,13 +112,14 @@ else on your Wi-Fi can run through all 10,000 PINs.
 
 ## Download
 
-Prebuilt files are on the [latest release](https://github.com/bhaweshverma50/fireglass/releases/latest):
+Prebuilt files are on the [releases page](https://github.com/bhaweshverma50/fireglass/releases). The phone apps
+haven't changed since 1.1.1:
 
 | File | For | Install |
 |---|---|---|
 | [Fireglass-Remote-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
 | [Fireglass-Remote-1.1.1-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
-| [Fireglass-TV-launcher-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-TV-launcher-1.1.1.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
+| [Fireglass-TV-launcher-1.2.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.2.0/Fireglass-TV-launcher-1.2.0.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
 
 The APKs are signed with a local debug key. To install over a copy signed with a different key, uninstall it first.
 
@@ -159,9 +178,13 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
   Amazon's home doesn't show.
 - `min_futurity=0` is global: any app's alarm set for the next few seconds fires on time instead
   of being pushed ~5 s out. `tools/restore.sh` removes it.
-- Watch history only records what apps report. JioHotstar reports episodes; YouTube reports nothing.
+- Watch history only records what apps report or put on Amazon's home. An app that does neither
+  isn't recorded.
 - Trending titles and per-app links come from JustWatch's public API, which is unofficial and
-  could change. Weather is from Open-Meteo, location from your IP via ip-api.com.
+  could change. So do the Hotstar content lookup and the YouTube results. Weather is from
+  Open-Meteo, location from your IP via ip-api.com.
+- After an Alexa voice search, Amazon's results page shows for a moment before the cover goes up:
+  Fireglass only hears about it once it's drawn.
 - Someone on your Wi-Fi can hold off new pairings for up to an hour by sending wrong PINs (they
   can't pair). Phones already paired keep working, and restarting the TV clears it.
 - Tested on a Fire TV Stick 3rd gen in India; the Fire OS 8 fixes came from a 4K Max. Other regions
@@ -173,6 +196,9 @@ Fireglass started as a fork of [tv-home](https://github.com/mihirgupta0900/tv-ho
 (MIT), an Apple TV-style launcher and debloat kit for Google TV. Fonts: Instrument Serif and
 Figtree, both SIL Open Font License (licences in `launcher/assets/fonts/`). Icons in the phone
 app: Lucide. Fire OS 8 support and the pairing limits: [@beenhere](https://github.com/beenhere).
+
+The wallpaper in the screenshots is *Cirrus front over Austnesfjorden, Lofoten* by Ximonic (Simo
+Räsänen), CC BY-SA 3.0, from Wikimedia Commons.
 
 Built with [Claude Code](https://claude.com/claude-code).
 
