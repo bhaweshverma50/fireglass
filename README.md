@@ -93,9 +93,9 @@ Prebuilt files are on the [latest release](https://github.com/bhaweshverma50/fir
 
 | File | For | Install |
 |---|---|---|
-| [Fireglass-Remote-1.1.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.0/Fireglass-Remote-1.1.0.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
-| [Fireglass-Remote-1.1.0-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.0/Fireglass-Remote-1.1.0-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
-| [Fireglass-TV-launcher-1.1.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.0/Fireglass-TV-launcher-1.1.0.apk) | Fire TV | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
+| [Fireglass-Remote-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
+| [Fireglass-Remote-1.1.1-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
+| [Fireglass-TV-launcher-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-TV-launcher-1.1.1.apk) | Fire TV | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
 
 The APKs are signed with a local debug key. To install over a copy signed with a different key, uninstall it first.
 
