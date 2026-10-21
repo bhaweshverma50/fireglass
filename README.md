@@ -122,13 +122,13 @@ else on your Wi-Fi can run through all 10,000 PINs.
 
 ## Download
 
-Prebuilt files are on the [latest release](https://github.com/bhaweshverma50/fireglass/releases/latest):
+Prebuilt files are on the [releases page](https://github.com/bhaweshverma50/fireglass/releases) (TV launcher 1.3.1, phone apps 1.3.0):
 
 | File | For | Install |
 |---|---|---|
 | [Fireglass-Remote-1.3.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.0/Fireglass-Remote-1.3.0.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
 | [Fireglass-Remote-1.3.0-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.0/Fireglass-Remote-1.3.0-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
-| [Fireglass-TV-launcher-1.3.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.0/Fireglass-TV-launcher-1.3.0.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
+| [Fireglass-TV-launcher-1.3.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.1/Fireglass-TV-launcher-1.3.1.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
 
 The APKs are signed with a local debug key. To install over a copy signed with a different key, uninstall it first.
 
