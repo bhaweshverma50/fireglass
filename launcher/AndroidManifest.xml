@@ -63,6 +63,12 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
 
         <activity
+            android:name=".LightsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
+
+        <activity
             android:name=".HomeSettings"
             android:exported="false"
             android:screenOrientation="landscape"

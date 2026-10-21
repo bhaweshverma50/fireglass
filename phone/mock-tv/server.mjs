@@ -3,11 +3,12 @@
 // without the Fire TV. Zero setup beyond `npm install` here (for mDNS); no TV is touched.
 //
 //   node server.mjs [--port 8090] [--name "Living Room TV"] [--keys ready|needs_bootstrap]
-//                   [--latency 60] [--no-mdns]
+//                   [--latency 60] [--no-mdns] [--no-bulbs]
 //
 // While running, type into this terminal:
 //   pin     show a fresh PIN (as if a phone asked)      keys   toggle keys ready / needs_bootstrap
 //   play    toggle now-playing audio                    forget drop all paired tokens
+//   bulb    toggle the fake WiZ bulb online / offline   (--no-bulbs: none until the phone looks)
 import { createServer } from 'node:http';
 import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -52,6 +53,52 @@ function showPin(device) {
   const line = `   PIN for ${device}:  ${code.split('').join(' ')}   `;
   const bar = '─'.repeat(line.length);
   console.log(`\n  ┌${bar}┐\n  │${c.b(c.yellow(line))}│\n  └${bar}┘  ${c.dim('(valid 2 minutes)')}\n`);
+}
+
+// ---------------------------------------------------------------- lights (one fake WiZ bulb)
+
+const SCENES = [
+  [1, 'Ocean'], [2, 'Romance'], [3, 'Sunset'], [4, 'Party'], [5, 'Fireplace'], [6, 'Cozy'], [7, 'Forest'],
+  [8, 'Pastel colors'], [9, 'Wake up'], [10, 'Bedtime'], [11, 'Warm white'], [12, 'Daylight'], [13, 'Cool white'],
+  [14, 'Night light'], [15, 'Focus'], [16, 'Relax'], [17, 'True colors'], [18, 'TV time'], [19, 'Plantgrowth'],
+  [20, 'Spring'], [21, 'Summer'], [22, 'Fall'], [23, 'Deepdive'], [24, 'Jungle'], [25, 'Mojito'], [26, 'Club'],
+  [27, 'Christmas'], [28, 'Halloween'], [29, 'Candlelight'], [30, 'Golden white'], [31, 'Pulse'], [32, 'Steampunk'],
+].map(([id, name]) => ({ id, name }));
+
+const FAKE_BULB = { ip: '192.168.0.10', mac: '9877d5d7871e', online: true, on: true, dimming: 80, temp: 2700, rgb: null, scene: null };
+const lights = {
+  bulbs: process.argv.includes('--no-bulbs') ? [] : [{ ...FAKE_BULB }],
+  auto: { dimWhilePlaying: false, matchHome: false },
+};
+const OFFLINE_FIELDS = { on: null, dimming: null, temp: null, rgb: null, scene: null };
+const lightsBody = () => ({
+  bulbs: lights.bulbs.map((b) => (b.online ? b : { ...b, ...OFFLINE_FIELDS })),
+  scenes: SCENES,
+  auto: lights.auto,
+});
+
+/** Validates a POST /api/lights body; returns an error code or null. */
+function badLights(b) {
+  const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+  if (b.on !== undefined && typeof b.on !== 'boolean') return 'bad_on';
+  if (b.dimming !== undefined && !int(b.dimming, 10, 100)) return 'bad_dimming';
+  if (b.temp !== undefined && !int(b.temp, 2200, 6500)) return 'bad_temp';
+  if (b.rgb !== undefined && !(Array.isArray(b.rgb) && b.rgb.length === 3 && b.rgb.every((v) => int(v, 0, 255)))) return 'bad_rgb';
+  if (b.scene !== undefined && !SCENES.some((s) => s.id === b.scene)) return 'bad_scene';
+  return null;
+}
+
+function applyLights(b) {
+  for (const bulb of lights.bulbs) {
+    if (!bulb.online) continue;
+    if (b.dimming !== undefined) bulb.dimming = b.dimming;
+    if (b.temp !== undefined) Object.assign(bulb, { temp: b.temp, rgb: null, scene: null });
+    if (b.rgb !== undefined) Object.assign(bulb, { rgb: b.rgb, temp: null, scene: null });
+    if (b.scene !== undefined) Object.assign(bulb, { scene: b.scene, temp: null, rgb: null });
+    // Like a WiZ bulb: any colour or brightness lights it up.
+    if (b.dimming !== undefined || b.temp !== undefined || b.rgb !== undefined || b.scene !== undefined) bulb.on = true;
+    if (b.on !== undefined) bulb.on = b.on;
+  }
 }
 
 // ---------------------------------------------------------------- helpers
@@ -227,6 +274,30 @@ async function handle(req, res) {
     return json(res, 200, { ok: true, opened: { title: t.title, pkg: offer.pkg, how } });
   }
 
+  if (m === 'GET' && p === '/api/lights') return json(res, 200, lightsBody());
+  if (m === 'POST' && p === '/api/lights') {
+    const b = await body(req);
+    if (!lights.bulbs.some((x) => x.online)) return json(res, 503, { error: 'no_bulbs' });
+    const bad = badLights(b);
+    if (bad) return json(res, 400, { error: bad });
+    applyLights(b);
+    log('lights', c.cyan(JSON.stringify(b)));
+    return json(res, 200, lightsBody());
+  }
+  if (m === 'POST' && p === '/api/lights/discover') {
+    log('lights', c.dim('scanning…'));
+    await new Promise((r) => setTimeout(r, 2500));
+    if (!lights.bulbs.length) lights.bulbs.push({ ...FAKE_BULB });
+    log('lights', 'found', c.cyan(lights.bulbs.filter((x) => x.online).length), 'online');
+    return json(res, 200, lightsBody());
+  }
+  if (m === 'POST' && p === '/api/lights/auto') {
+    const b = await body(req);
+    for (const k of ['dimWhilePlaying', 'matchHome']) if (typeof b[k] === 'boolean') lights.auto[k] = b[k];
+    log('lights auto', c.cyan(JSON.stringify(lights.auto)));
+    return json(res, 200, lightsBody());
+  }
+
   return json(res, 404, { error: 'not_found' });
 }
 
@@ -244,7 +315,7 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n  ${c.b('Mock TV')} “${NAME}” on port ${PORT}`);
   for (const ip of ips) console.log(`  ${c.cyan(`http://${ip}:${PORT}`)}`);
   console.log(`  keys: ${state.keys}   paired phones: ${Object.keys(state.tokens).length}`);
-  console.log(c.dim('  type: pin | keys | play | forget\n'));
+  console.log(c.dim('  type: pin | keys | play | forget | bulb\n'));
   if (MDNS) {
     try {
       const { Bonjour } = await import('bonjour-service');
@@ -266,5 +337,10 @@ createInterface({ input: process.stdin }).on('line', (l) => {
   else if (cmd === 'keys') { state.keys = state.keys === 'ready' ? 'needs_bootstrap' : 'ready'; log('keys now', c.cyan(state.keys)); }
   else if (cmd === 'play') { state.now.playing = !state.now.playing; log('playing', state.now.playing); }
   else if (cmd === 'forget') { state.tokens = {}; save(); log('forgot all phones'); }
-  else if (cmd) console.log(c.dim('commands: pin | keys | play | forget'));
+  else if (cmd === 'bulb') {
+    if (!lights.bulbs.length) lights.bulbs.push({ ...FAKE_BULB });
+    else lights.bulbs[0].online = !lights.bulbs[0].online;
+    log('bulb', lights.bulbs[0].online ? c.cyan('online') : c.yellow('offline'));
+  }
+  else if (cmd) console.log(c.dim('commands: pin | keys | play | forget | bulb'));
 });

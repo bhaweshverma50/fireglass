@@ -99,6 +99,26 @@ can be the home's background (Customise home → Background → Wallpaper).
 The TV turns each upload upright (EXIF), crops it to 16:9 from the centre and stores a 1920x1080
 JPEG, whatever size the phone sent. The upload is streamed to a temp file, never held whole in memory.
 
+## Lights
+
+WiZ bulbs on the TV's Wi-Fi. The TV talks to them itself (JSON over UDP 38899, the WiZ local
+protocol), found by asking every address on the /24. If the router keeps the TV and the bulbs apart,
+it goes through [Lumen](https://github.com/bhaweshverma50/lumen) instead, found at `lumen.lan:3000`
+or on port 3000 of any address. Light requests don't wake a sleeping TV.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/lights` | | The state below. With nothing known yet, it looks first (a few seconds) |
+| POST | `/api/lights` | any of `{"on":true,"dimming":10..100,"temp":2200..6500,"rgb":[r,g,b],"scene":6}` | The state, after applying to every bulb; `503 {"error":"no_bulbs"}` with none |
+| POST | `/api/lights/discover` | | The state, after looking again (up to ~12 s) |
+| POST | `/api/lights/auto` | `{"dimWhilePlaying":true,"matchHome":false}` (either) | The state |
+
+The state: `{"bulbs":[{"ip":"192.168.0.10","mac":"9877d5d7871e","online":true,"on":true,"dimming":100,"temp":2700,"rgb":null,"scene":null}],"scenes":[{"id":6,"name":"Cozy"},…],"auto":{"dimWhilePlaying":false,"matchHome":false},"via":"direct"|"lumen"|null}`.
+`temp` is set in white mode, `rgb` in colour mode, `scene` while a WiZ scene runs; an offline bulb has
+nulls. `dimWhilePlaying` fades the lights to 15% at 2200 K while any app plays and brings them back
+after; `matchHome` gives them the colour of the focused app or title picture while the home is in
+front. Changing the lights by hand holds both off until something changes.
+
 ## Assistant actions (phone side)
 
 The phone's on-device model turns speech/text into exactly one of these (grammar-constrained JSON),

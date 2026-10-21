@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import type {
-  Key, NowPlaying, Ok, PlayRequest, PlayResult, RecentItem, Title, TvApp, TvInfo, WallpaperList,
+  Key, Lights, LightsAuto, LightsPatch, NowPlaying, Ok, PlayRequest, PlayResult, RecentItem, Title, TvApp, TvInfo, WallpaperList,
 } from './types';
 
 export const DEFAULT_PORT = 8090;
@@ -119,6 +119,13 @@ export class TvClient {
   }
   deleteWallpaper(name: string) { return this.req<Ok>(`/api/wallpapers?name=${encodeURIComponent(name)}`, { method: 'DELETE' }); }
   setBackground(name: string | null) { return this.req<Ok>('/api/wallpapers/background', { method: 'POST', body: { name } }); }
+
+  // lights: WiZ bulbs on the TV's Wi-Fi; every call answers with the whole state
+  lights() { return this.req<Lights>('/api/lights', { timeout: 15000 }); }
+  setLights(p: LightsPatch) { return this.req<Lights>('/api/lights', { method: 'POST', body: p, timeout: 4000 }); }
+  /** Scans the LAN, which takes the TV up to ~4 s. */
+  discoverLights() { return this.req<Lights>('/api/lights/discover', { method: 'POST', timeout: 20000 }); }
+  setLightsAuto(p: Partial<LightsAuto>) { return this.req<Lights>('/api/lights/auto', { method: 'POST', body: p }); }
 
   /** Send a picture from this phone (streamed from its file); the TV crops it to 16:9, 1920x1080. */
   async uploadWallpaper(fileUri: string, asBackground = false): Promise<{ ok: boolean; name: string }> {

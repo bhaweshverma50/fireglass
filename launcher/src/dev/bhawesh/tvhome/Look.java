@@ -316,7 +316,7 @@ final class Look {
 
     /** Line icons drawn in code (no emoji glyphs): Wi-Fi and a gear. */
     static final class Icon extends Drawable {
-        static final int WIFI = 0, GEAR = 1, PLAY = 2, RECENTS = 3, SEARCH = 4;
+        static final int WIFI = 0, GEAR = 1, PLAY = 2, RECENTS = 3, SEARCH = 4, BULB = 5;
         private final int kind, size;
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF arc = new RectF();
@@ -344,6 +344,20 @@ final class Look {
                 p.setStyle(Paint.Style.FILL);
                 arc.set(b.left + s * 0.06f, b.top + s * 0.34f, b.right - s * 0.28f, b.bottom - s * 0.1f);
                 c.drawRoundRect(arc, r, r, p);
+                return;
+            }
+            if (kind == BULB) {
+                // A bulb: round glass narrowing to a neck, two lines for the base.
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(s * 0.1f);
+                float r = s * 0.27f, by = b.top + s * 0.36f;
+                arc.set(cx - r, by - r, cx + r, by + r);
+                c.drawArc(arc, 140, 260, false, p);
+                float nx = s * 0.13f, ny = b.top + s * 0.68f;
+                c.drawLine(cx - r * 0.77f, by + r * 0.64f, cx - nx, ny, p);
+                c.drawLine(cx + r * 0.77f, by + r * 0.64f, cx + nx, ny, p);
+                c.drawLine(cx - nx, ny, cx + nx, ny, p);
+                c.drawLine(cx - nx * 0.8f, b.top + s * 0.82f, cx + nx * 0.8f, b.top + s * 0.82f, p);
                 return;
             }
             if (kind == SEARCH) {

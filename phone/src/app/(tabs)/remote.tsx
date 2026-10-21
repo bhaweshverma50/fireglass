@@ -6,7 +6,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, ChevronDown, CircleDot, FastForward, House, Keyboard, Menu, Pause, Play, Rewind, TriangleAlert, Volume1, Volume2, VolumeX, MousePointer2,
+  ArrowLeft, ChevronDown, CircleDot, FastForward, House, Keyboard, Lightbulb, Menu, Pause, Play, Rewind, TriangleAlert, Volume1, Volume2, VolumeX, MousePointer2,
   type LucideIcon,
 } from 'lucide-react-native';
 import { sendKey } from '@/lib/remote';
@@ -63,7 +63,10 @@ export default function Remote() {
             <Txt v="caption" color={C.faint}>{online === false ? 'Not reachable' : online ? 'Connected' : 'Connecting'}</Txt>
           </View>
         </Press>
-        <RoundButton icon={Keyboard} size={44} label="Type on TV" onPress={() => setKb(true)} feedback="tap" />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <RoundButton icon={Lightbulb} size={44} label="Lights" onPress={() => router.push('/lights')} feedback="tap" />
+          <RoundButton icon={Keyboard} size={44} label="Type on TV" onPress={() => setKb(true)} feedback="tap" />
+        </View>
       </View>
 
       {keysDown ? <KeysNotice /> : <NowPlayingCard />}

@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C } from './theme';
 
 /** A soft round glow: an SVG radial gradient, colour at the centre fading to nothing. */
-const Glow = memo(function Glow({ color, size, opacity }: { color: string; size: number; opacity: number }) {
+export const Glow = memo(function Glow({ color, size, opacity }: { color: string; size: number; opacity: number }) {
   const id = `g${color.replace('#', '')}${Math.round(opacity * 100)}`;
   return (
     <Svg width={size} height={size}>

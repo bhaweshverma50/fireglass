@@ -87,6 +87,8 @@ public class MainActivity extends Activity {
     private final Map<String, App> apps = new HashMap<>();
     private final List<View> appCards = new ArrayList<>();
     private final List<View> navItems = new ArrayList<>();
+    // A title card's picture's main colour, for the lights' Match the home.
+    private final Map<View, Integer> artColors = new HashMap<>();
     // Top bar as icons only (HomeSettings): names kept here, shown in a tag under the focused one.
     private final Map<TextView, String> navLabels = new HashMap<>();
     private boolean iconsOnly;
@@ -178,6 +180,7 @@ public class MainActivity extends Activity {
         registerReceiver(tick, tf);
         watchNetwork();
         resumed = true;
+        Lights.atHome(this, true);
         bar.update(this);
         updateWifi();
         if (HomeSettings.version(this) != appliedSettings) applySettings();
@@ -218,6 +221,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         resumed = false;
+        Lights.atHome(this, false);
         sky.setRunning(false);
         handler.removeCallbacks(advance);
         unregisterReceiver(tick);
@@ -471,11 +475,13 @@ public class MainActivity extends Activity {
         wifiIcon = new Look.Icon(Look.Icon.WIFI, dp(15));
         TextView search = navItem("Search", new Look.Icon(Look.Icon.SEARCH, dp(15)), () -> startActivity(new Intent(this, Search.class)));
         TextView recents = navItem("Apps in use", new Look.Icon(Look.Icon.RECENTS, dp(15)), this::showSwitcher);
+        TextView lightsItem = navItem("Lights", new Look.Icon(Look.Icon.BULB, dp(15)), () -> startActivity(new Intent(this, LightsActivity.class)));
         wifiItem = navItem("Wi-Fi", wifiIcon, () -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS)));
         TextView[] settings = new TextView[1];
         settings[0] = navItem("Settings", new Look.Icon(Look.Icon.GEAR, dp(15)), () -> showSettings(settings[0]));
         row.addView(search, new LinearLayout.LayoutParams(-2, -1));
         row.addView(recents, new LinearLayout.LayoutParams(-2, -1));
+        row.addView(lightsItem, new LinearLayout.LayoutParams(-2, -1));
         row.addView(wifiItem, new LinearLayout.LayoutParams(-2, -1));
         row.addView(settings[0], new LinearLayout.LayoutParams(-2, -1));
         return capsule;
@@ -642,6 +648,7 @@ public class MainActivity extends Activity {
             if (!has) return;
             focusPkg = app.pkg;
             accent = app.color;
+            Lights.homeColor(this, app.color);
             sky.setAccent(app.color, 0.6f, true);
             dimTo(0f);
             scroll.smoothScrollTo(0, 0);
@@ -980,6 +987,7 @@ public class MainActivity extends Activity {
         boolean refocus = sections.hasFocus();
         sections.removeAllViews();
         sectionCards.clear();
+        artColors.clear();
         rowLoaders.clear();
         rowImages.clear();
         rowsLoaded.clear();
@@ -1082,6 +1090,8 @@ public class MainActivity extends Activity {
             lift.onFocusChange(v, has);
             if (!has) return;
             focusPkg = t.optString("id");
+            Integer art = artColors.get(card);
+            Lights.homeColor(this, art != null ? art : a != null ? a.color : accent);
             dimTo(1f);
             loadRowsAround(sectionCards.indexOf(cards));
             int y = sections.getTop() + rowScroll.getTop() - dp(96);
@@ -1093,7 +1103,11 @@ public class MainActivity extends Activity {
         rowImages.get(row).add(img);
         rowLoaders.get(row).add(() -> io.execute(() -> {
             Bitmap b = Net.image(this, url, 400);
-            if (b != null) runOnUiThread(() -> { if (rowsLoaded.contains(row)) img.setImageBitmap(b); });
+            int art = b == null ? 0 : Look.sampleColor(new android.graphics.drawable.BitmapDrawable(getResources(), b));
+            if (b != null) runOnUiThread(() -> {
+                if (rowsLoaded.contains(row)) img.setImageBitmap(b);
+                artColor(card, art);
+            });
         }));
         cards.add(card);
         return card;
@@ -1152,6 +1166,8 @@ public class MainActivity extends Activity {
             num.glow(has, ms(has ? 420 : 260));
             if (!has) return;
             focusPkg = t.optString("id");
+            Integer art = artColors.get(unit);
+            Lights.homeColor(this, art != null ? art : color);
             dimTo(1f);
             loadRowsAround(sectionCards.indexOf(cards));
             int y = sections.getTop() + rowScroll.getTop() - dp(96);
@@ -1163,7 +1179,11 @@ public class MainActivity extends Activity {
         rowImages.get(r).add(img);
         rowLoaders.get(r).add(() -> io.execute(() -> {
             Bitmap b = Net.image(this, src, 260);
-            if (b != null) runOnUiThread(() -> { if (rowsLoaded.contains(r)) img.setImageBitmap(b); });
+            int art = b == null ? 0 : Look.sampleColor(new android.graphics.drawable.BitmapDrawable(getResources(), b));
+            if (b != null) runOnUiThread(() -> {
+                if (rowsLoaded.contains(r)) img.setImageBitmap(b);
+                artColor(unit, art);
+            });
         }));
         cards.add(unit);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(num.wide - overlap + pw, ph);
@@ -1261,6 +1281,16 @@ public class MainActivity extends Activity {
         sectionCards.add(cards);
         rowLoaders.add(new ArrayList<>());
         rowImages.add(new ArrayList<>());
+    }
+
+    /** Remember a card's picture colour; if it's focused already, the lights take it now. */
+    private void artColor(View card, int color) {
+        // sampleColor gives grey for pictures without a clear colour: keep the app's then.
+        float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        if (hsv[1] < 0.1f) return;
+        artColors.put(card, color);
+        if (card.hasFocus()) Lights.homeColor(this, color);
     }
 
     /** Posters for row {@code s} and its neighbours; the first rows also load once content arrives. */

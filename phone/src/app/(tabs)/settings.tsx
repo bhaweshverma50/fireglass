@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronRight, Cpu, Image as ImageIcon, Info, Pencil, Plus, Trash2, Tv } from 'lucide-react-native';
+import { ChevronRight, Cpu, Image as ImageIcon, Info, Lightbulb, Pencil, Plus, Trash2, Tv } from 'lucide-react-native';
 import { modelById } from '@/lib/models';
 import { useAssistant } from '@/state/assistant';
 import { useStore, type SavedTv } from '@/state/store';
@@ -67,8 +67,12 @@ export default function Settings() {
       </View>
 
       <Txt v="serif" style={styles.section}>On the TV</Txt>
-      <Row icon={ImageIcon} title="Wallpapers" sub="Your pictures for the screensaver and the home background"
-        onPress={() => router.push('/wallpapers')} />
+      <View style={{ gap: 10 }}>
+        <Row icon={ImageIcon} title="Wallpapers" sub="Your pictures for the screensaver and the home background"
+          onPress={() => router.push('/wallpapers')} />
+        <Row icon={Lightbulb} title="Lights" sub="Your WiZ light: brightness, colour and scenes"
+          onPress={() => router.push('/lights')} />
+      </View>
 
       <Txt v="serif" style={styles.section}>Assistant</Txt>
       <Row icon={Cpu} title="Models" onPress={() => router.push('/models')}

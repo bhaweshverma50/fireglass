@@ -228,7 +228,8 @@ final class RemoteServer {
         if (m.equals("POST") && p.equals("/api/pair/request")) return pairRequest(r);
         if (m.equals("POST") && p.equals("/api/pair/confirm")) return pairConfirm(r);
         if (r.auth == null || !tokens().contains(r.auth)) return Res.json(401, err("unpaired"));
-        if (m.equals("POST")) wake();
+        // Lights are for the room, not the screen: adjusting them leaves a sleeping TV asleep.
+        if (m.equals("POST") && !p.startsWith("/api/lights")) wake();
 
         if (m.equals("GET") && p.equals("/api/info")) {
             return Res.json(200, new JSONObject().put("name", tvName()).put("model", Build.MODEL)
@@ -255,6 +256,7 @@ final class RemoteServer {
             return res;
         }
         if (p.startsWith("/api/wallpapers")) return wallpapers(r);
+        if (p.startsWith("/api/lights")) return lights(r);
         if (m.equals("POST") && p.equals("/api/key")) {
             JSONObject b = r.json();
             String key = b.optString("key");
@@ -281,6 +283,21 @@ final class RemoteServer {
         }
         if (p.equals("/api/search") || p.equals("/api/recs") || p.equals("/api/recent") || p.equals("/api/play")) {
             return Catalog.handle(svc, this, r.method, p, r.q("q"), r.json());
+        }
+        return Res.json(404, err("not_found"));
+    }
+
+    private Res lights(Req r) throws Exception {
+        String m = r.method, p = r.path;
+        if (m.equals("GET") && p.equals("/api/lights")) {
+            // Nothing known yet: look on the first ask (about 2.5 s), then answer.
+            return Res.json(200, !Lights.available(svc) ? Lights.discover(svc) : Lights.status(svc));
+        }
+        if (m.equals("POST") && p.equals("/api/lights/discover")) return Res.json(200, Lights.discover(svc));
+        if (m.equals("POST") && p.equals("/api/lights/auto")) return Res.json(200, Lights.setAuto(svc, r.json()));
+        if (m.equals("POST") && p.equals("/api/lights")) {
+            if (!Lights.available(svc)) return Res.json(503, err("no_bulbs"));
+            return Res.json(200, Lights.set(svc, r.json()));
         }
         return Res.json(404, err("not_found"));
     }

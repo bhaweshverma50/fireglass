@@ -40,6 +40,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="models" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="wallpapers" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="lights" options={{ animation: 'slide_from_right' }} />
         </Stack>
         </ThemeProvider>
       ) : (

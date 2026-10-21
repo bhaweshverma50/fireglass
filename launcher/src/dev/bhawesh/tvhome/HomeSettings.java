@@ -47,7 +47,7 @@ public class HomeSettings extends Activity {
         Row(String key, String label, String hint, String... values) {
             this.key = key; this.label = label; this.hint = hint; this.values = values;
         }
-        boolean toggle() { return values.length == 2 && values[1].equals("Shown"); }
+        boolean toggle() { return values.length == 2 && (values[1].equals("Shown") || values[1].equals("On")); }
     }
 
     /** Group header, then its rows. */
@@ -67,6 +67,11 @@ public class HomeSettings extends Activity {
             new Row(MOTION, "Motion", "Calm drops the light streaks and springy lifts for quieter, quicker focus moves.", "Full", "Calm"),
             new Row(SAVER, "Screensaver", "What shows when the TV sits idle: a clock, trending posters, your photos, the sky, or a different one each time.",
                     Screensaver.STYLES),
+            "Lights",
+            new Row(Lights.DIM, "Dim while playing", "When a show or video starts, WiZ lights on this Wi-Fi fade low and warm. They come back as they were when it stops.",
+                    "Off", "On"),
+            new Row(Lights.MATCH, "Match the home", "While you browse the home, the lights take the colour of the app you're on, softly.",
+                    "Off", "On"),
     };
 
     private SkyView sky, previewSky;
@@ -94,7 +99,7 @@ public class HomeSettings extends Activity {
         root.addView(buildLeft(), leftLp());
         FrameLayout list = buildList();
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(dp(400), -2, Gravity.END | Gravity.CENTER_VERTICAL);
-        rp.setMargins(0, 0, dp(Look.PAD_X), 0);
+        rp.setMargins(0, dp(28), dp(Look.PAD_X), dp(28));
         root.addView(list, rp);
         setContentView(root);
         legible(get(this, LOOK));
@@ -163,7 +168,9 @@ public class HomeSettings extends Activity {
         pg.setColor(0xF2FFFFFF);
         puck.setBackground(pg);
         puck.setAlpha(0f);
-        panel.addView(puck, new FrameLayout.LayoutParams(-1, dp(46)));
+        // Highlight and rows scroll together once the list is taller than the screen.
+        FrameLayout inner = new FrameLayout(this);
+        inner.addView(puck, new FrameLayout.LayoutParams(-1, dp(46)));
 
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
@@ -179,7 +186,12 @@ public class HomeSettings extends Activity {
                 if (first == null) first = v;
             }
         }
-        panel.addView(list, new FrameLayout.LayoutParams(-1, -2));
+        inner.addView(list, new FrameLayout.LayoutParams(-1, -2));
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        sv.addView(inner);
+        panel.addView(sv, new FrameLayout.LayoutParams(-1, -2));
         if (first != null) first.requestFocus();
         return panel;
     }
@@ -513,7 +525,7 @@ public class HomeSettings extends Activity {
     }
 
     /** On/off switch; dark on the white highlight, white elsewhere. */
-    private static final class Toggle extends View {
+    static final class Toggle extends View {
         private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.RectF r = new android.graphics.RectF();
         private boolean on, ink;
@@ -546,7 +558,7 @@ public class HomeSettings extends Activity {
     }
 
     /** One dot per option, the current one bright. */
-    private static final class Dots extends View {
+    static final class Dots extends View {
         private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private final int n;
         private int cur;

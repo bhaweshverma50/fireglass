@@ -88,6 +88,16 @@ public class Watching extends NotificationListenerService {
             watched.put(mc, cb);
             consider(mc);
         }
+        Lights.playing(this, anyPlaying()); // a closed app's session is just gone: that's stopped too
+    }
+
+    /** For the lights' dim-while-playing. */
+    private boolean anyPlaying() {
+        for (MediaController c : watched.keySet()) {
+            PlaybackState s = c.getPlaybackState();
+            if (s != null && s.getState() == PlaybackState.STATE_PLAYING) return true;
+        }
+        return false;
     }
 
     private void untrackAll() {
@@ -99,6 +109,7 @@ public class Watching extends NotificationListenerService {
 
     /** While a session plays the same item, count it as watched once it has played a minute. */
     private void consider(MediaController mc) {
+        Lights.playing(this, anyPlaying());
         PlaybackState s = mc.getPlaybackState();
         MediaMetadata m = mc.getMetadata();
         String[] item = s == null || s.getState() != PlaybackState.STATE_PLAYING || m == null ? null : item(m);

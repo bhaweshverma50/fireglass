@@ -42,6 +42,30 @@ export type Title = {
 export type Wallpaper = { name: string; bytes: number; modified: number; uploaded: boolean };
 export type WallpaperList = { items: Wallpaper[]; background: string | null; look: number };
 
+/**
+ * /api/lights: the WiZ bulbs the TV found on its Wi-Fi. One of temp (white), rgb (colour) or scene
+ * is set while a bulb is on; an offline bulb has every state field null.
+ */
+export type Rgb = [number, number, number];
+export type Bulb = {
+  ip: string;
+  mac: string | null;
+  online: boolean;
+  on: boolean | null;
+  /** 10–100 */
+  dimming: number | null;
+  /** Kelvin, 2200–6500, in white mode */
+  temp: number | null;
+  rgb: Rgb | null;
+  /** WiZ scene id while a scene runs */
+  scene: number | null;
+};
+export type LightScene = { id: number; name: string };
+export type LightsAuto = { dimWhilePlaying: boolean; matchHome: boolean };
+export type Lights = { bulbs: Bulb[]; scenes: LightScene[]; auto: LightsAuto };
+/** Any subset; the TV applies it to every bulb. */
+export type LightsPatch = Partial<{ on: boolean; dimming: number; temp: number; rgb: Rgb; scene: number }>;
+
 /** /api/recent items are titles or bare apps. */
 export type RecentItem = Title | { pkg: string; label: string };
 
