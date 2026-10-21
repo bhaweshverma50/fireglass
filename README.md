@@ -7,7 +7,8 @@ nothing sent to anyone's cloud.
 
 ![Fireglass home screen: featured title on the right, apps along the bottom](docs/screenshots/tv-home-featured.jpg)
 
-Built on a Fire TV Stick (3rd gen, 1 GB RAM, Fire OS 7.7). On that stick:
+Built on a Fire TV Stick (3rd gen, 1 GB RAM, Fire OS 7.7), and reported working on Fire OS 8 (a Fire TV
+Stick 4K Max). On the 3rd gen stick:
 
 | | Amazon's home | Fireglass |
 |---|---|---|
@@ -75,6 +76,8 @@ A few Fire OS walls and how Fireglass gets round them:
   so the bounce goes through an alarm (system_server sends it, and is exempt) with the global
   `min_futurity=0`, which the installer sets. A loading screen, kept ready from the start, covers
   Amazon's home until Fireglass has drawn. Idea from [dumbtv](https://github.com/humblemuzzu/dumbtv).
+  Fire OS 8 (Android 11) also blocks launches from the background unless the app has a window on
+  screen, so there the alarm waits 300 ms for the loading screen to draw first.
 - **Apps can't press keys on other apps, and Fire OS refuses ADB from the stick itself.** The
   phone starts a tiny key injector (`KeyServer`, run with `app_process` as the shell user) over
   network ADB once per boot. After that it injects in about a millisecond, where
@@ -85,7 +88,9 @@ A few Fire OS walls and how Fireglass gets round them:
   featured picture is baked once into a hardware bitmap and nothing redraws the whole screen while
   you move.
 
-The phone ↔ TV API is in [docs/remote-api.md](docs/remote-api.md).
+The phone ↔ TV API is in [docs/remote-api.md](docs/remote-api.md). Pairing is guarded: a PIN takes
+3 wrong guesses, and new PINs come at least 30 s apart, longer after repeated misses, so nothing
+else on your Wi-Fi can run through all 10,000 PINs.
 
 ## Download
 
@@ -95,7 +100,7 @@ Prebuilt files are on the [latest release](https://github.com/bhaweshverma50/fir
 |---|---|---|
 | [Fireglass-Remote-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
 | [Fireglass-Remote-1.1.1-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-Remote-1.1.1-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
-| [Fireglass-TV-launcher-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-TV-launcher-1.1.1.apk) | Fire TV | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
+| [Fireglass-TV-launcher-1.1.1.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.1.1/Fireglass-TV-launcher-1.1.1.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
 
 The APKs are signed with a local debug key. To install over a copy signed with a different key, uninstall it first.
 
@@ -116,6 +121,9 @@ You need a Mac (Linux works with small changes), a Fire TV Stick on the same Wi-
    launcher/build-and-install.sh                 # builds, installs, grants what it needs
    ```
 
+   On JDK 21, build-tools 34's `d8` crashes; point the script at newer build-tools with
+   `BUILD_TOOLS=<sdk>/build-tools/35.0.0`.
+
 3. **Optional debloat** (reversible: packages are disabled, never uninstalled). Read the list
    first and keep what you use:
 
@@ -126,7 +134,8 @@ You need a Mac (Linux works with small changes), a Fire TV Stick on the same Wi-
 
    Undo with `pm enable` on the same list.
 4. **Phone app**: see [phone/README.md](phone/README.md). Open it on the same Wi-Fi, pick your TV,
-   type the PIN the TV shows, and allow the phone on the TV once.
+   type the PIN the TV shows, and allow the phone on the TV once. Mistype it three times and the
+   app asks the TV for a new one.
 
 Change the shelf order on the TV itself (press ≡ on an app), or the defaults in
 [launcher/res/values/config.xml](launcher/res/values/config.xml).
@@ -137,7 +146,7 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 
 | Path | What it is |
 |---|---|
-| [launcher/](launcher/) | The TV app. Plain Android Java, no Gradle, about 160 KB |
+| [launcher/](launcher/) | The TV app. Plain Android Java, no Gradle, about 175 KB |
 | [phone/](phone/) | The phone app. Expo / React Native, with `llama.rn` for the on-device model and a mock TV for development |
 | [docs/remote-api.md](docs/remote-api.md) | The LAN API between them |
 | [examples/](examples/) | Debloat lists (Fire TV Stick 3rd gen, and the original TCL Google TV one) |
@@ -153,15 +162,17 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 - Watch history only records what apps report. JioHotstar reports episodes; YouTube reports nothing.
 - Trending titles and per-app links come from JustWatch's public API, which is unofficial and
   could change. Weather is from Open-Meteo, location from your IP via ip-api.com.
-- Tested on one Fire TV Stick model, in India. Other regions need the country code in
-  `Catalog.java`.
+- Someone on your Wi-Fi can hold off new pairings for up to an hour by sending wrong PINs (they
+  can't pair). Phones already paired keep working, and restarting the TV clears it.
+- Tested on a Fire TV Stick 3rd gen in India; the Fire OS 8 fixes came from a 4K Max. Other regions
+  need the country code in `Catalog.java`.
 
 ## Credits
 
 Fireglass started as a fork of [tv-home](https://github.com/mihirgupta0900/tv-home) by Mihir Gupta
 (MIT), an Apple TV-style launcher and debloat kit for Google TV. Fonts: Instrument Serif and
 Figtree, both SIL Open Font License (licences in `launcher/assets/fonts/`). Icons in the phone
-app: Lucide.
+app: Lucide. Fire OS 8 support and the pairing limits: [@beenhere](https://github.com/beenhere).
 
 Built with [Claude Code](https://claude.com/claude-code).
 
