@@ -80,3 +80,15 @@ social = (f'<div style="position:absolute;inset:0;background:radial-gradient(60%
           '<div style="font-family:FT;font-weight:500;font-size:32px;line-height:1.35;margin-top:22px;color:rgba(255,255,255,.86)">A faster home for your Fire TV, and a remote on your phone.</div>'
           '<div style="font-family:FT;font-weight:600;font-size:26px;margin-top:28px;color:#A9B8FF">github.com/bhaweshverma50/fireglass</div></div>')
 render(social, 1280, 640, DOCS / "social-preview.png", transparent=False)
+
+# README header: a rounded night-sky card (transparent corners, so it sits on GitHub's light and dark themes)
+pill = ('<span style="display:inline-flex;align-items:center;height:56px;padding:0 26px;border-radius:28px;'
+        'background:rgba(255,255,255,.10);border:2px solid rgba(169,184,255,.28);font-family:FT;font-weight:600;font-size:26px;color:#E6E9FF">{}</span>')
+header = (f'<div style="position:absolute;inset:0;border-radius:48px;overflow:hidden;background:radial-gradient(55% 90% at 8% 0%,#2E3A8C,transparent 70%),radial-gradient(50% 90% at 100% 45%,rgba(110,63,184,.85),transparent 70%),radial-gradient(45% 80% at 0% 100%,rgba(27,111,138,.7),transparent 70%),#070B1F">'
+          f'<img src="{(BRAND / "fireglass-mark.svg").as_uri()}" style="position:absolute;left:60px;top:40px;width:520px;height:520px">'
+          '<div style="position:absolute;left:600px;right:80px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;color:#fff">'
+          '<div style="font-family:IS;font-size:190px;line-height:.95;letter-spacing:-2px">Fireglass</div>'
+          '<div style="font-family:FT;font-weight:500;font-size:36px;line-height:1.35;margin-top:22px;color:rgba(255,255,255,.88);"><div>A fast home screen for the Fire TV Stick,</div><div>and a remote on your phone.</div></div>'
+          '<div style="display:flex;gap:16px;margin-top:38px">' + "".join(pill.format(t) for t in ["Fire TV Stick", "iPhone", "Android", "No root"]) + '</div>'
+          '</div></div>')
+render(header, 1760, 600, DOCS / "readme-header.png")

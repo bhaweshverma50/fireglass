@@ -1,8 +1,5 @@
-<p align="center"><img src="docs/fireglass-icon.png" width="128" height="128" alt="Fireglass icon: a frosted-glass flame with an ember inside, on a night sky"></p>
+<p align="center"><img src="docs/readme-header.png" width="880" alt="Fireglass: a fast home screen for the Fire TV Stick, and a remote on your phone"></p>
 
-# Fireglass
-
-**A fast, beautiful home screen for the Amazon Fire TV Stick, and a phone app that runs it.**
 Debloat a slow Fire TV over Wi-Fi, replace Amazon's ad-filled home with an Apple TV-style one,
 and control the TV from your phone with an on-device AI assistant. No root, nothing permanent,
 nothing sent to anyone's cloud.
