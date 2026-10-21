@@ -267,6 +267,7 @@ final class Look {
             this.strength = strength;
             rim.setStyle(Paint.Style.STROKE);
             rim.setStrokeWidth(1.5f);
+            smoke.setColor(Color.TRANSPARENT); // a Paint starts opaque black: no smoke unless asked for
         }
 
         @Override protected void onBoundsChange(Rect b) {
