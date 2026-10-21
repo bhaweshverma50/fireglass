@@ -87,6 +87,10 @@ public class MainActivity extends Activity {
     private final Map<String, App> apps = new HashMap<>();
     private final List<View> appCards = new ArrayList<>();
     private final List<View> navItems = new ArrayList<>();
+    // Top bar as icons only (HomeSettings): names kept here, shown in a tag under the focused one.
+    private final Map<TextView, String> navLabels = new HashMap<>();
+    private boolean iconsOnly;
+    private TextView navTip;
     private final List<List<View>> sectionCards = new ArrayList<>();
     // Poster images per row, loaded only near where focus is and dropped while away in an app:
     // ~80 decoded posters held up front cost ~25 MB on a 1 GB stick.
@@ -346,6 +350,11 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
         np.setMargins(0, dp(Look.PAD_TOP + 4), dp(Look.PAD_X), 0);
         page.addView(nav, np);
+        navTip = Look.text(this, Look.sans(this, 600), 12, Color.WHITE);
+        navTip.setBackground(new Look.Glass(dp(12), 0.95f));
+        navTip.setPadding(dp(12), dp(6), dp(12), dp(6));
+        navTip.setAlpha(0f);
+        page.addView(navTip, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START));
 
         FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(500), -2, Gravity.TOP | Gravity.START);
         ip.setMargins(dp(Look.PAD_X), dp(Look.HERO_TOP), 0, 0);
@@ -488,16 +497,49 @@ public class MainActivity extends Activity {
             icon.setColor(c);
             if (has) {
                 movePuck(t);
+                showTip(t);
                 scroll.smoothScrollTo(0, 0);
             } else {
                 // Fade the puck only when focus leaves the capsule, not when it moves inside it.
                 handler.post(() -> {
-                    if (!navItems.contains(getCurrentFocus())) puck.animate().alpha(0f).setDuration(ms(180)).start();
+                    if (navItems.contains(getCurrentFocus())) return;
+                    puck.animate().alpha(0f).setDuration(ms(180)).start();
+                    navTip.animate().alpha(0f).translationY(navTip.getTranslationY() - dp(4)).setDuration(ms(160)).start();
                 });
             }
         });
         navItems.add(t);
+        navLabels.put(t, label);
         return t;
+    }
+
+    /** Icons only: the focused button's name in a small glass tag under it, gliding along with focus. */
+    private void showTip(TextView t) {
+        if (!iconsOnly) return;
+        navTip.setText(navLabels.get(t));
+        navTip.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        View row = (View) t.getParent();
+        // Centred under the button, but not past the capsule's right end (the screen margin).
+        float x = Math.min(nav.getRight() - navTip.getMeasuredWidth(),
+                nav.getLeft() + row.getLeft() + t.getLeft() + t.getWidth() / 2f - navTip.getMeasuredWidth() / 2f);
+        float y = nav.getBottom() + dp(8);
+        boolean fresh = navTip.getAlpha() < 0.05f;
+        if (fresh) navTip.setTranslationX(x);
+        if (fresh) navTip.setTranslationY(y - dp(4));
+        navTip.animate().cancel();
+        navTip.animate().translationX(x).translationY(y).alpha(1f).setInterpolator(new DecelerateInterpolator(2f))
+                .setDuration(ms(fresh ? 200 : 300)).start();
+    }
+
+    private void applyNavStyle() {
+        iconsOnly = HomeSettings.get(this, HomeSettings.NAV) == 1;
+        for (Map.Entry<TextView, String> e : navLabels.entrySet()) {
+            TextView t = e.getKey();
+            t.setText(iconsOnly ? "" : e.getValue());
+            t.setCompoundDrawablePadding(iconsOnly ? 0 : dp(8));
+            t.setPadding(dp(iconsOnly ? 12 : 14), 0, dp(iconsOnly ? 12 : 16), 0);
+        }
+        if (!iconsOnly) navTip.setAlpha(0f);
     }
 
     private void movePuck(View item) {
@@ -865,6 +907,7 @@ public class MainActivity extends Activity {
         calm = HomeSettings.get(this, HomeSettings.MOTION) == 1;
         sky.setLook(HomeSettings.get(this, HomeSettings.LOOK));
         bar.weather.setVisibility(HomeSettings.get(this, HomeSettings.WEATHER) == 1 ? View.VISIBLE : View.GONE);
+        applyNavStyle();
         info.setVisibility(minimal ? View.GONE : View.VISIBLE);
         appTitle.setVisibility(minimal ? View.VISIBLE : View.GONE);
         if (minimal) {
@@ -1351,6 +1394,9 @@ public class MainActivity extends Activity {
 
     /** Small dark sheet of rows under {@code anchor}; focus returns there when it closes. */
     private void showSheet(View anchor, List<TextView> rows, int xOff) {
+        // The sheet opens where the top bar's name tag sits; the tag returns with focus.
+        navTip.animate().cancel();
+        navTip.setAlpha(0f);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(8);
@@ -1438,7 +1484,9 @@ public class MainActivity extends Activity {
                 offline = wm.getConnectionInfo().getNetworkId() == -1;
             }
         } catch (SecurityException ignored) { }
-        wifiItem.setText(offline ? "Offline" : online ? name : "No internet");
+        String label = offline ? "Offline" : online ? name : "No internet";
+        navLabels.put(wifiItem, label);
+        wifiItem.setText(iconsOnly ? "" : label);
         wifiIcon.dim = offline || !online;
         wifiIcon.invalidateSelf();
     }

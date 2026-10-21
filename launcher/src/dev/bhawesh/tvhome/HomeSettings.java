@@ -23,7 +23,7 @@ public class HomeSettings extends Activity {
     // ---------------------------------------------------------------- stored values
 
     static final String STYLE = "style", LOOK = "look", RECENT = "rows_recent", TRENDING = "rows_trending",
-            MOTION = "motion", WEATHER = "weather", SAVER = "screensaver";
+            MOTION = "motion", WEATHER = "weather", SAVER = "screensaver", NAV = "nav_icons";
     static final int STYLE_FEATURED = 0, STYLE_MINIMAL = 1;
 
     static SharedPreferences prefs(Context c) {
@@ -57,6 +57,8 @@ public class HomeSettings extends Activity {
                     "Featured titles", "Minimal"),
             new Row(LOOK, "Background", "Live sky follows the time of day, from dawn peach to night indigo. The colour washes stay fixed. Wallpaper shows the picture you choose in the phone app.",
                     SkyView.LOOKS),
+            new Row(NAV, "Top bar", "Labels names each button. Icons only keeps the bar small, and the name shows under the button you're on.",
+                    "Labels", "Icons only"),
             "Home rows",
             new Row(RECENT, "Recently watched", "What you've played lately, with the app it was on. Hold OK on a title there to remove it.", "Hidden", "Shown"),
             new Row(TRENDING, "Trending rows", "A row for each of your apps with what's popular on it right now.", "Hidden", "Shown"),

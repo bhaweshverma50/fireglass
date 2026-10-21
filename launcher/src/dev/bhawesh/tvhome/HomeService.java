@@ -57,7 +57,7 @@ public class HomeService extends AccessibilityService {
     private static final String VOICE_RESULTS = "SearchResultsActivity";
     private final Runnable voiceWatch = this::readVoiceQuery;
     private int voiceTries;
-    private AccessibilityNodeInfo voicePage; // Amazon's results window, held: the cover takes focus over it
+    private long voiceQuietUntil;            // gave up on this results page: leave it be for a while
     private String lastVoice = "";
     private long lastVoiceAt;
 
@@ -99,9 +99,9 @@ public class HomeService extends AccessibilityService {
         // Only its home screen; its other screens (app library, search) open normally.
         CharSequence cls = e.getClassName();
         if (cls != null && cls.toString().contains(VOICE_RESULTS)) {
+            // Taking the cover down re-focuses Amazon's page; after giving up on it, don't start over.
+            if (SystemClock.uptimeMillis() < voiceQuietUntil) return;
             // Cover Amazon's page at once and read what was said from underneath the cover.
-            if (voicePage != null) voicePage.recycle();
-            voicePage = getRootInActiveWindow();
             voiceTries = 0;
             showMask();
             handler.removeCallbacks(voiceWatch);
@@ -168,16 +168,22 @@ public class HomeService extends AccessibilityService {
 
     /** The page puts the words as heard ("search for mirzapur") at the top; it may take a moment to fill. */
     private void readVoiceQuery() {
+        // Every window on screen, not the active one: Alexa's overlay or the cover can hold focus.
         String said = null;
-        if (voicePage != null && voicePage.refresh()) {
-            for (AccessibilityNodeInfo n : voicePage.findAccessibilityNodeInfosByViewId(AMAZON_HOME + ":id/search_text")) {
-                if (said == null && n.getText() != null) said = n.getText().toString();
-                n.recycle();
+        for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+            AccessibilityNodeInfo root = w.getRoot();
+            if (root == null) continue;
+            if (said == null) {
+                for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(AMAZON_HOME + ":id/search_text")) {
+                    if (said == null && n.getText() != null && n.getText().length() > 0) said = n.getText().toString();
+                    n.recycle();
+                }
             }
+            root.recycle();
         }
         if (said == null || said.trim().isEmpty()) {
             if (++voiceTries < 12) handler.postDelayed(voiceWatch, 250);
-            else endVoice(true);
+            else { Log.w(TAG, "voice search: nothing to read on Amazon's page"); endVoice(true); }
             return;
         }
         String q = Search.spokenQuery(said);
@@ -199,9 +205,9 @@ public class HomeService extends AccessibilityService {
 
     /** Done with Amazon's page; with nothing to search, take the cover down and leave it showing. */
     private void endVoice(boolean uncover) {
-        if (voicePage != null) voicePage.recycle();
-        voicePage = null;
-        if (uncover) removeMask();
+        if (!uncover) return;
+        voiceQuietUntil = SystemClock.uptimeMillis() + 15_000;
+        removeMask();
     }
 
     private static PendingIntent launch(Context c) {
