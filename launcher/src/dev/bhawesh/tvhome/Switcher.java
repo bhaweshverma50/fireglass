@@ -30,6 +30,7 @@ import java.util.function.Consumer;
  * (GET_USAGE_STATS, granted over adb at install).
  */
 final class Switcher extends FrameLayout {
+
     private static final long WINDOW_MS = 24 * 3600 * 1000L;
     /** Closed here, and when: an app stays off the list until it's used again. */
     private static final Map<String, Long> closedAt = new HashMap<>();
@@ -85,15 +86,20 @@ final class Switcher extends FrameLayout {
         closeAll.setVisibility(recent.isEmpty() ? GONE : VISIBLE);
         wire();
         if (cards.isEmpty()) empty.setVisibility(VISIBLE);
-        else cards.get(0).requestFocus();
         // Empty, it still needs focus so Back reaches it.
         setFocusable(cards.isEmpty());
-        if (cards.isEmpty()) requestFocus();
 
+        // Focus once attached (MainActivity.showSwitcher): asked for before then, it can stay behind.
         setAlpha(0f);
         animate().alpha(1f).setDuration(Look.ms(c, 220)).start();
         row.setTranslationY(dp(30));
         row.animate().translationY(0f).setDuration(Look.ms(c, 380)).setInterpolator(new DecelerateInterpolator(2f)).start();
+    }
+
+    /** First card, or the switcher itself when nothing is open. Called once it's on screen. */
+    void takeFocus() {
+        if (cards.isEmpty()) requestFocus();
+        else cards.get(0).requestFocus();
     }
 
     /** Apps used in the last day, newest first, minus this launcher and ones closed since. */

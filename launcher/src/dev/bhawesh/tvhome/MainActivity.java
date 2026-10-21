@@ -254,6 +254,7 @@ public class MainActivity extends Activity {
         FrameLayout root = (FrameLayout) getWindow().getDecorView().findViewById(android.R.id.content);
         switcher = new Switcher(this, apps, a -> { hideSwitcher(back); launchApp(a); }, () -> hideSwitcher(back));
         root.addView(switcher, new FrameLayout.LayoutParams(-1, -1));
+        switcher.takeFocus();
     }
 
     private void hideSwitcher(View back) {
@@ -608,6 +609,9 @@ public class MainActivity extends Activity {
         Collections.sort(rest, (x, y) -> x.label.compareToIgnoreCase(y.label));
         order.addAll(rest);
 
+        // Fire OS sends package broadcasts around app activity; a rebuild then must not pull focus
+        // out of whatever has it (Apps in use, a row below) back to the first app.
+        boolean refocus = appsRow.hasFocus() || getCurrentFocus() == null;
         appsRow.removeAllViews();
         appCards.clear();
         for (int i = 0; i < order.size(); i++) appsRow.addView(appTile(order.get(i)), Look.tileLp(this, Look.APP_W, i == 0));
@@ -616,7 +620,7 @@ public class MainActivity extends Activity {
             sky.setAccent(accent, 0.6f, false);
         }
         wireFocus();
-        restoreFocus();
+        if (refocus) restoreFocus();
     }
 
     private View appTile(App app) {
