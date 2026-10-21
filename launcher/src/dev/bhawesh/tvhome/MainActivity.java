@@ -1,5 +1,6 @@
 package dev.bhawesh.tvhome;
 
+import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
@@ -13,7 +14,9 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Shader;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -927,7 +930,7 @@ public class MainActivity extends Activity {
         for (String p : apps.keySet()) if (!order.contains(p)) order.add(p);
         for (String pkg : order) {
             App a = apps.get(pkg);
-            List<JSONObject> list = titlesOn(pkg, 12);
+            List<JSONObject> list = titlesOn(pkg, 10);
             if (a != null && list.size() >= 3) addSection("Trending on " + a.label, list, pkg);
         }
         wireFocus();
@@ -946,7 +949,10 @@ public class MainActivity extends Activity {
         List<View> cards = new ArrayList<>();
         rowLoaders.add(new ArrayList<>());
         rowImages.add(new ArrayList<>());
-        for (int i = 0; i < items.size(); i++) r.addView(titleCard(items.get(i), pkg, cards, rs), Look.tileLp(this, Look.APP_W, i == 0));
+        for (int i = 0; i < items.size(); i++) {
+            if (pkg == null) r.addView(titleCard(items.get(i), null, cards, rs), Look.tileLp(this, Look.APP_W, i == 0));
+            else rankCard(r, items.get(i), i + 1, pkg, cards, rs);
+        }
         sections.addView(rs, new LinearLayout.LayoutParams(-1, -2));
         sectionCards.add(cards);
     }
@@ -1019,6 +1025,76 @@ public class MainActivity extends Activity {
         }));
         cards.add(card);
         return card;
+    }
+
+    private static final int RANK_POSTER_W = 116;
+
+    /**
+     * A trending title as a ranked poster, like a streaming app's Top 10: its rank as a big serif
+     * numeral, half behind the poster's left edge. The numeral warms to the app's colour on focus.
+     * The whole unit takes focus, so scrolling to it keeps the numeral in view.
+     */
+    private void rankCard(LinearLayout row, JSONObject t, int rank, String pkg, List<View> cards, View rowScroll) {
+        App a = apps.get(pkg);
+        int color = a != null ? a.color : accent;
+        int pw = dp(RANK_POSTER_W), ph = pw * 3 / 2;
+        RankNumber num = new RankNumber(this, rank, color, ph);
+        int overlap = (int) (num.wide * 0.3f);
+        FrameLayout unit = new FrameLayout(this);
+        unit.setClipChildren(false);
+        unit.setTag(t.optString("id"));
+        unit.addView(num, new FrameLayout.LayoutParams(num.wide, ph));
+
+        FrameLayout poster = new FrameLayout(this);
+        poster.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{darken(color, 0.55f), 0xFF121217}));
+        ImageView img = new ImageView(this);
+        img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        poster.addView(img, new FrameLayout.LayoutParams(-1, -1));
+        String url = t.optString("poster", "");
+        if (url.isEmpty()) {
+            // No poster: the backdrop, with the name written on it like the other cards.
+            url = t.optString("thumb", null);
+            TextView name = Look.text(this, Look.serif(this), 15, Color.WHITE);
+            name.setText(t.optString("title"));
+            name.setMaxLines(3);
+            name.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+            name.setPadding(dp(10), 0, dp(10), dp(10));
+            poster.addView(name, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        }
+        View.OnFocusChangeListener lift = liftable(poster, color, null);
+        poster.setFocusable(false);
+        poster.setClickable(false);
+        poster.setLongClickable(false);
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(pw, ph);
+        pp.leftMargin = num.wide - overlap;
+        unit.addView(poster, pp);
+
+        unit.setFocusable(true);
+        unit.setClickable(true);
+        unit.setOnClickListener(v -> openTitle(t, pkg));
+        unit.setOnFocusChangeListener((v, has) -> {
+            lift.onFocusChange(poster, has);
+            num.glow(has, ms(has ? 420 : 260));
+            if (!has) return;
+            focusPkg = t.optString("id");
+            dimTo(1f);
+            loadRowsAround(sectionCards.indexOf(cards));
+            int y = sections.getTop() + rowScroll.getTop() - dp(96);
+            int max = Math.max(0, content.getHeight() - scroll.getHeight());
+            scroll.smoothScrollTo(0, Math.max(0, Math.min(y, max)));
+        });
+        String src = url;
+        int r = rowLoaders.size() - 1;
+        rowImages.get(r).add(img);
+        rowLoaders.get(r).add(() -> io.execute(() -> {
+            Bitmap b = Net.image(this, src, 260);
+            if (b != null) runOnUiThread(() -> { if (rowsLoaded.contains(r)) img.setImageBitmap(b); });
+        }));
+        cards.add(unit);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(num.wide - overlap + pw, ph);
+        lp.setMargins(rank == 1 ? 0 : dp(6), 0, 0, 0);
+        row.addView(unit, lp);
     }
 
     /** Posters for row {@code s} and its neighbours; the first rows also load once content arrives. */
@@ -1371,6 +1447,61 @@ public class MainActivity extends Activity {
     }
 
     /** 16:9 container. */
+    /**
+     * A rank in the display serif, as tall as the poster beside it: a faint fill fading downwards
+     * and a hairline edge. With focus both warm to the app's colour.
+     */
+    static final class RankNumber extends View {
+        private static final ArgbEvaluator MIX = new ArgbEvaluator();
+        private final String n;
+        private final int color;
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), edge = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float inset;
+        final int wide;
+        private float glow;
+        private ValueAnimator anim;
+
+        RankNumber(Context c, int rank, int color, int height) {
+            super(c);
+            n = String.valueOf(rank);
+            this.color = color;
+            // Size the digits so their ink, not the font's line box, is the poster's height.
+            fill.setTypeface(Look.serif(c));
+            fill.setTextSize(100);
+            Rect ink = new Rect();
+            fill.getTextBounds("0", 0, 1, ink);
+            fill.setTextSize(100f * height / ink.height());
+            fill.setLetterSpacing(-0.06f);
+            edge.set(fill);
+            edge.setStyle(Paint.Style.STROKE);
+            edge.setStrokeWidth(Look.dp(c, 1.6f));
+            fill.getTextBounds(n, 0, n.length(), ink);
+            inset = -ink.left + Look.dp(c, 2);
+            wide = (int) Math.ceil(ink.width() + Look.dp(c, 4));
+        }
+
+        void glow(boolean on, long ms) {
+            if (anim != null) anim.cancel();
+            anim = ValueAnimator.ofFloat(glow, on ? 1f : 0f).setDuration(ms);
+            anim.addUpdateListener(v -> { glow = (float) v.getAnimatedValue(); invalidate(); });
+            anim.start();
+        }
+
+        private int mix(int rest, int lit) { return (int) MIX.evaluate(glow, rest, lit); }
+
+        @Override protected void onDraw(Canvas c) {
+            float h = getHeight();
+            int hue = color & 0xFFFFFF;
+            fill.setShader(new LinearGradient(0, 0, 0, h, mix(0x2EFFFFFF, 0xA6000000 | hue),
+                    mix(0x00FFFFFF, 0x14000000 | hue), Shader.TileMode.CLAMP));
+            edge.setShader(new LinearGradient(0, 0, 0, h, mix(0x99FFFFFF, 0xF2FFFFFF),
+                    mix(0x1FFFFFFF, 0xCC000000 | hue), Shader.TileMode.CLAMP));
+            float base = h - edge.getStrokeWidth();
+            c.drawText(n, inset, base, fill);
+            c.drawText(n, inset, base, edge);
+        }
+    }
+
     static final class AspectFrame extends FrameLayout {
         AspectFrame(Context c) { super(c); }
         @Override protected void onMeasure(int w, int h) {
