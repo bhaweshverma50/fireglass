@@ -15,8 +15,8 @@ Every endpoint except the two below needs `Authorization: Bearer <token>`; witho
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/pair/request` | `{"device":"Pixel 8"}` | `{"ok":true}`; the TV shows a 4-digit PIN for 2 minutes. Too soon after the last one: `429 {"error":"pair_cooldown","retry_after_s":30}` |
-| POST | `/api/pair/confirm` | `{"pin":"4821"}` | `{"token":"<32 hex>","name":"Living Room TV"}` or `403 {"error":"bad_pin"}` |
+| POST | `/api/pair/request` | `{"device":"Pixel 8"}` | `{"ok":true}`; the TV shows a 4-digit PIN for 2 minutes (while one is still showing, it keeps that one). Too soon after the last one: `429 {"error":"pair_cooldown","retry_after_s":30}` |
+| POST | `/api/pair/confirm` | `{"pin":"4821"}` | `{"token":"<32 hex>","name":"Living Room TV"}`, `403 {"error":"bad_pin","tries_left":2}`, or `403 {"error":"pin_expired"}` when no PIN is showing (timed out or out of tries) |
 
 Tokens don't expire; the phone stores its token per TV.
 

@@ -147,8 +147,11 @@ function Find({ tvs, scanning, error, restart, onPick }: {
   );
 }
 
+/** retry_after_s as "30 s" or "4 min". */
+const wait = (s?: number) => (!s ? 'a moment' : s < 60 ? `${s} s` : `${Math.ceil(s / 60)} min`);
+
 function Pair({ target, onDone }: { target: Target; onDone: () => void }) {
-  const [phase, setPhase] = useState<'asking' | 'pin' | 'checking' | 'error'>('asking');
+  const [phase, setPhase] = useState<'asking' | 'pin' | 'checking' | 'dropped' | 'error'>('asking');
   const [pin, setPin] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
@@ -165,7 +168,10 @@ function Pair({ target, onDone }: { target: Target; onDone: () => void }) {
       setTimeout(() => input.current?.focus(), 250);
     } catch (e) {
       setPhase('error');
-      setMsg(e instanceof ApiError && e.status === 0 ? `Can’t reach ${target.host}. Is the TV on?` : 'The TV didn’t start pairing. Try again.');
+      setMsg(!(e instanceof ApiError) ? 'The TV didn’t start pairing. Try again.'
+        : e.status === 0 ? `Can’t reach ${target.host}. Is the TV on?`
+        : e.code === 'pair_cooldown' ? `Too many tries. The TV will show a new PIN in ${wait(e.data?.retry_after_s)}.`
+        : 'The TV didn’t start pairing. Try again.');
     }
   };
   useEffect(() => { ask(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -181,8 +187,17 @@ function Pair({ target, onDone }: { target: Target; onDone: () => void }) {
       haptic.err();
       shake.value = withSequence(...[10, -10, 8, -8, 4, 0].map((v) => withTiming(v, { duration: 50 })));
       setPin('');
+      const left: number | undefined = e instanceof ApiError ? e.data?.tries_left : undefined;
+      // The TV dropped the PIN (out of tries or timed out): typing more can't work, so ask for a new one.
+      if (e instanceof ApiError && (e.code === 'pin_expired' || left === 0)) {
+        setPhase('dropped');
+        setMsg(left === 0 ? 'That PIN didn’t match either, so the TV dropped it. Ask for a new PIN.' : 'That PIN has run out. Ask the TV for a new one.');
+        return;
+      }
       setPhase('pin');
-      setMsg(e instanceof ApiError && e.code === 'bad_pin' ? 'That PIN didn’t match. Check the TV and try again.' : 'Pairing failed. Ask the TV for a new PIN.');
+      setMsg(e instanceof ApiError && e.code === 'bad_pin'
+        ? `That PIN didn’t match. Check the TV and try again${left ? ` (${left} ${left === 1 ? 'try' : 'tries'} left)` : ''}.`
+        : 'Pairing failed. Ask the TV for a new PIN.');
       setTimeout(() => input.current?.focus(), 100);
     }
   };

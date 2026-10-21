@@ -48,7 +48,7 @@ const log = (...a) => console.log(c.dim(new Date().toLocaleTimeString()), ...a);
 
 function showPin(device) {
   const code = String(randomInt(0, 10000)).padStart(4, '0');
-  state.pin = { code, device, until: Date.now() + 120_000 };
+  state.pin = { code, device, until: Date.now() + 120_000, tries: 3 };
   const line = `   PIN for ${device}:  ${code.split('').join(' ')}   `;
   const bar = '─'.repeat(line.length);
   console.log(`\n  ┌${bar}┐\n  │${c.b(c.yellow(line))}│\n  └${bar}┘  ${c.dim('(valid 2 minutes)')}\n`);
@@ -128,15 +128,19 @@ async function handle(req, res) {
 
   if (m === 'POST' && p === '/api/pair/request') {
     const b = await body(req);
-    showPin(String(b.device ?? 'a phone').slice(0, 40));
+    // Like the TV: a PIN still showing stands. (The TV's cooldown between PINs isn't emulated.)
+    if (!state.pin || Date.now() > state.pin.until) showPin(String(b.device ?? 'a phone').slice(0, 40));
     log('pair request from', c.cyan(b.device ?? '?'));
     return json(res, 200, { ok: true });
   }
   if (m === 'POST' && p === '/api/pair/confirm') {
     const b = await body(req);
-    if (!state.pin || Date.now() > state.pin.until || String(b.pin) !== state.pin.code) {
-      log('pair confirm', c.yellow('bad PIN'), b.pin);
-      return json(res, 403, { error: 'bad_pin' });
+    if (!state.pin || Date.now() > state.pin.until) return json(res, 403, { error: 'pin_expired' });
+    if (String(b.pin) !== state.pin.code) {
+      const left = --state.pin.tries;
+      log('pair confirm', c.yellow('bad PIN'), b.pin, `(${left} left)`);
+      if (left <= 0) state.pin = null;
+      return json(res, 403, { error: 'bad_pin', tries_left: Math.max(left, 0) });
     }
     const token = randomBytes(16).toString('hex');
     state.tokens[token] = state.pin.device;
@@ -149,7 +153,7 @@ async function handle(req, res) {
   const auth = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
   if (!state.tokens[auth]) return json(res, 401, { error: 'unpaired' });
 
-  if (m === 'GET' && p === '/api/info') return json(res, 200, { name: NAME, model: 'Fire TV Stick (3rd gen) · mock', version: '1', keys: state.keys });
+  if (m === 'GET' && p === '/api/info') return json(res, 200, { name: NAME, model: 'AFTSSS · mock', version: '1', keys: state.keys });
   if (m === 'GET' && p === '/api/keys/bootstrap') {
     return json(res, 200, { adb_port: 5555, cmd: 'pkill -f dev.bhawesh.tvhome.KeyServer; CLASSPATH=/data/app/dev.bhawesh.tvhome/base.apk nohup app_process / dev.bhawesh.tvhome.KeyServer >/dev/null 2>&1 &' });
   }

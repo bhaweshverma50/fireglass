@@ -14,6 +14,7 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -230,7 +231,7 @@ final class RemoteServer {
         if (m.equals("POST")) wake();
 
         if (m.equals("GET") && p.equals("/api/info")) {
-            return Res.json(200, new JSONObject().put("name", tvName()).put("model", android.os.Build.MODEL)
+            return Res.json(200, new JSONObject().put("name", tvName()).put("model", Build.MODEL)
                     .put("version", "1").put("keys", Keys.status(svc)));
         }
         if (m.equals("GET") && p.equals("/api/keys/bootstrap")) {
@@ -367,6 +368,8 @@ final class RemoteServer {
         String shown = String.format(Locale.ROOT, "%04d", new SecureRandom().nextInt(10000));
         synchronized (pairing) {
             long now = System.currentTimeMillis();
+            // The PIN on screen still stands (the phone reopened pairing): keep it and its tries left.
+            if (pin != null && now < pinUntil) return ok();
             if (now < nextPinAt) {
                 return Res.json(429, err("pair_cooldown").put("retry_after_s", (nextPinAt - now + 999) / 1000));
             }
@@ -382,7 +385,7 @@ final class RemoteServer {
     private Res pairConfirm(Req r) throws JSONException {
         String given = r.json().optString("pin");
         synchronized (pairing) {
-            if (pin == null || System.currentTimeMillis() > pinUntil) return Res.json(403, err("bad_pin"));
+            if (pin == null || System.currentTimeMillis() > pinUntil) return Res.json(403, err("pin_expired"));
             if (!MessageDigest.isEqual(pin.getBytes(StandardCharsets.UTF_8), given.getBytes(StandardCharsets.UTF_8))) {
                 misses++;
                 long wait = Math.min(PIN_COOLDOWN_MAX_MS, PIN_COOLDOWN_MS << Math.min((misses - 1) / PIN_TRIES, 7));
@@ -392,7 +395,7 @@ final class RemoteServer {
                     pin = null;
                     main.post(svc::hidePin);
                 }
-                return Res.json(403, err("bad_pin"));
+                return Res.json(403, err("bad_pin").put("tries_left", Math.max(pinTriesLeft, 0)));
             }
             pin = null;
             misses = 0;

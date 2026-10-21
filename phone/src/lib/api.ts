@@ -6,7 +6,8 @@ import type {
 export const DEFAULT_PORT = 8090;
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message?: string) {
+  /** `data` is the error body, for fields beyond `error` (retry_after_s, tries_left). */
+  constructor(public status: number, public code: string, message?: string, public data: any = null) {
     super(message ?? code);
   }
   get unpaired() { return this.status === 401; }
@@ -77,7 +78,7 @@ export class TvClient {
     if (!res.ok) {
       // /api/play answers ok:false with candidates; let callers read it.
       if (data && typeof data === 'object' && 'ok' in data) return data as T;
-      throw new ApiError(res.status, data?.error ?? `http_${res.status}`);
+      throw new ApiError(res.status, data?.error ?? `http_${res.status}`, undefined, data);
     }
     return data as T;
   }
