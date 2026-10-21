@@ -359,7 +359,7 @@ public class MainActivity extends Activity {
         nav.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, orr, ob) -> {
             if (iconsOnly || nav.getLeft() >= bar.view.getRight() + dp(24)) return;
             crowded = true;
-            nav.post(this::applyNavStyle);
+            nav.post(() -> { applyNavStyle(); wireFocus(); });
         });
         navTip = Look.text(this, Look.sans(this, 600), 12, Color.WHITE);
         navTip.setBackground(new Look.Glass(dp(12), 0.95f));
@@ -528,7 +528,7 @@ public class MainActivity extends Activity {
 
     /** Icons only: the focused button's name in a small glass tag under it, gliding along with focus. */
     private void showTip(TextView t) {
-        if (!bare(t)) {
+        if (!iconsOnly) {
             navTip.animate().alpha(0f).setDuration(ms(120)).start();
             return;
         }
@@ -547,25 +547,18 @@ public class MainActivity extends Activity {
                 .setDuration(ms(fresh ? 200 : 300)).start();
     }
 
-    /**
-     * Just the icon, its name in the tag under it when focused: every button in Icons only, and
-     * Wi-Fi always, since a network's name can be any length.
-     */
-    private boolean bare(TextView t) {
-        return iconsOnly || t == wifiItem;
-    }
-
     private void applyNavStyle() {
         iconsOnly = HomeSettings.get(this, HomeSettings.NAV) == 1 || crowded;
         for (Map.Entry<TextView, String> e : navLabels.entrySet()) {
             TextView t = e.getKey();
-            boolean b = bare(t);
+            boolean b = iconsOnly;
             t.setText(b ? "" : e.getValue());
             t.setCompoundDrawablePadding(b ? 0 : dp(8));
             t.setPadding(dp(b ? 12 : 14), 0, dp(b ? 12 : 16), 0);
         }
-        View f = getCurrentFocus();
-        if (!(f instanceof TextView) || !navLabels.containsKey(f) || !bare((TextView) f)) navTip.setAlpha(0f);
+        // A labelled bar leaves Wi-Fi out: it's in Settings, and a network's name can be any length.
+        wifiItem.setVisibility(iconsOnly ? View.VISIBLE : View.GONE);
+        if (!iconsOnly) navTip.setAlpha(0f);
     }
 
     private void movePuck(View item) {
@@ -1338,10 +1331,13 @@ public class MainActivity extends Activity {
         if (appCards.isEmpty()) return;
         View firstApp = appCards.get(0);
         int heroId = heroButton.getId();
-        for (int i = 0; i < navItems.size(); i++) {
-            View p = navItems.get(i);
-            p.setNextFocusLeftId(i == 0 ? p.getId() : navItems.get(i - 1).getId());
-            p.setNextFocusRightId(i == navItems.size() - 1 ? p.getId() : navItems.get(i + 1).getId());
+        // Only the buttons showing (Wi-Fi hides in a labelled bar).
+        List<View> shown = new ArrayList<>();
+        for (View p : navItems) if (p.getVisibility() == View.VISIBLE) shown.add(p);
+        for (int i = 0; i < shown.size(); i++) {
+            View p = shown.get(i);
+            p.setNextFocusLeftId(i == 0 ? p.getId() : shown.get(i - 1).getId());
+            p.setNextFocusRightId(i == shown.size() - 1 ? p.getId() : shown.get(i + 1).getId());
             p.setNextFocusUpId(p.getId());
             p.setNextFocusDownId(heroId);
         }
@@ -1543,7 +1539,7 @@ public class MainActivity extends Activity {
         } catch (SecurityException ignored) { }
         String label = offline ? "Offline" : online ? name : "No internet";
         navLabels.put(wifiItem, label);
-        if (!bare(wifiItem)) wifiItem.setText(label);
+        if (!iconsOnly) wifiItem.setText(label);
         wifiIcon.dim = offline || !online;
         wifiIcon.invalidateSelf();
     }
