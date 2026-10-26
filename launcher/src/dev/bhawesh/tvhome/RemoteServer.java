@@ -512,7 +512,8 @@ final class RemoteServer {
 
     boolean open(String url, String pkg) {
         if (url == null || url.isEmpty()) return pkg != null && launch(pkg);
-        Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // CLEAR_TASK: a running app otherwise comes to the front without seeing the link (see Catalog.open).
+        Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         if (pkg != null && !pkg.isEmpty()) i.setPackage(pkg);
         try {
             svc.startActivity(i);

@@ -288,7 +288,15 @@ final class Catalog {
                 .put("pkg", YOUTUBE).put("how", "deeplink"));
     }
 
-    /** Open an offer in its app. Crunchyroll wants its Android TV intent; the rest take their web link. */
+    /** Apps whose web link only opens their home: they take their Android TV link (JustWatch's deeplink). */
+    private static final java.util.Set<String> APP_LINKS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.crunchyroll.crunchyroid", HOTSTAR));
+
+    /**
+     * Open an offer in its app, on the title. A running app given a link with just NEW_TASK is only
+     * brought to the front, on whatever it showed last, and never sees the link; CLEAR_TASK makes it
+     * start over on the title (the process stays warm, so it's still quick).
+     */
     static boolean open(Context c, JSONObject offer) {
         String pkg = offer.optString("pkg");
         try {
@@ -300,14 +308,15 @@ final class Catalog {
                 if (i == null) return false;
                 c.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 return true;
-            } else if (pkg.equals("com.crunchyroll.crunchyroid") && offer.has("deeplink")) {
+            } else if (APP_LINKS.contains(pkg) && offer.has("deeplink")) {
                 i = Intent.parseUri(offer.getString("deeplink"), Intent.URI_INTENT_SCHEME);
+                i.setFlags(0); // its own launch flags don't help here
             } else {
                 i = new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getString("url")));
             }
             i.setPackage(pkg);
-            i.setComponent(null);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (!pkg.equals("com.crunchyroll.crunchyroid")) i.setComponent(null); // Crunchyroll's link names its activity
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             c.startActivity(i);
             return true;
         } catch (Exception e) {
