@@ -1,6 +1,7 @@
 package dev.bhawesh.tvhome;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -122,6 +123,26 @@ final class Wallpapers {
     static String background(Context c) {
         String n = HomeSettings.prefs(c).getString(KEY, null);
         return file(n) == null ? null : n;
+    }
+
+    /**
+     * Wallpaper changes (HomeSettings): when it's time, another of the pictures, at random but never
+     * the same one twice running. Called each minute while the home shows, and when it comes back.
+     */
+    static void rotate(Context c) {
+        int every = HomeSettings.ROTATE_MIN[HomeSettings.get(c, HomeSettings.ROTATE)];
+        if (every == 0 || HomeSettings.get(c, HomeSettings.LOOK) != SkyView.WALLPAPER) return;
+        SharedPreferences p = HomeSettings.prefs(c);
+        long now = System.currentTimeMillis(), at = p.getLong("wall_rotated_at", 0);
+        if (at == 0) { p.edit().putLong("wall_rotated_at", now).apply(); return; } // start counting now
+        if (now - at < every * 60_000L) return;
+        File[] files = DIR.listFiles((d, n) -> n.matches(NAME));
+        String cur = background(c);
+        if (files == null || files.length < 2) return;
+        String next;
+        do next = files[new java.util.Random().nextInt(files.length)].getName(); while (next.equals(cur));
+        p.edit().putLong("wall_rotated_at", now).apply();
+        setBackground(c, next);
     }
 
     /** Make {@code name} the home's background (Background: Wallpaper), or none (back to Live sky). */

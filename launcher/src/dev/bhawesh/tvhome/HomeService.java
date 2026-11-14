@@ -46,7 +46,8 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
     private FrameLayout cover;
     private WindowManager.LayoutParams coverLp;
     private boolean covering;
-    private long lastBounce;
+    private long lastBounce, lastSettingsAt, pausedUntil;
+    private final long[] recentBounces = new long[3];
     private RemoteServer remote;
     private final Runnable pinTimeout = this::hidePin;
     private String front = "";          // package of the window in front
@@ -81,6 +82,12 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
         return super.onUnbind(i);
     }
 
+    /** Remote buttons given another job (Buttons); everything else goes on as usual. */
+    @Override
+    protected boolean onKeyEvent(android.view.KeyEvent e) {
+        return Buttons.onKey(this, e);
+    }
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || e.getPackageName() == null) return;
@@ -88,6 +95,7 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
         // Popups and toasts from the system don't count as what's in front.
         if (pkg.equals("android") || pkg.equals("com.android.systemui")) return;
         front = pkg;
+        if (pkg.equals(FIRE_SETTINGS)) lastSettingsAt = SystemClock.uptimeMillis();
         // Opened something else first: drop a queued bounce so it can't pull the user back.
         if (!pkg.equals(AMAZON_HOME) && !pkg.equals(getPackageName())) arrived(this);
         if (settingsMode) {
@@ -151,9 +159,28 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
         handler.removeCallbacks(settingsWatch);
     }
 
+    /**
+     * Back to Fireglass. The guards are cleanyourtv's: Amazon sends two home events per press
+     * (1.5 s dedupe); leaving a Settings screen passes through Amazon's home (2 s grace); and a
+     * loop of bounces (3 in 10 s, say an app fighting back) stands aside for a minute.
+     */
     private void bounce() {
         long now = SystemClock.uptimeMillis();
-        if (now - lastBounce < 1000) return;
+        if (now - lastBounce < 1500 || now < pausedUntil) return;
+        if (now - lastSettingsAt < 2000) {
+            // Opening Settings passes through Amazon's home: look again once that has settled.
+            handler.postDelayed(() -> { if (front.equals(AMAZON_HOME) && !settingsMode) bounce(); },
+                    2000 - (now - lastSettingsAt));
+            return;
+        }
+        System.arraycopy(recentBounces, 1, recentBounces, 0, recentBounces.length - 1);
+        recentBounces[recentBounces.length - 1] = now;
+        if (recentBounces[0] != 0 && now - recentBounces[0] < 10_000) {
+            pausedUntil = now + 60_000;
+            java.util.Arrays.fill(recentBounces, 0);
+            Log.w(TAG, "home loop: standing aside for a minute");
+            return;
+        }
         lastBounce = now;
         showMask();
         // Android 10+ (Fire OS 8) blocks this background start unless our uid has a visible window:

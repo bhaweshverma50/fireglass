@@ -9,7 +9,7 @@ com.amazon.device.software.ota.override
 com.amazon.tv.forcedotaupdater.v2
 
 # Ads, ad ID, sponsored previews, content recognition
-com.amazon.ftvads.deeplinking      # ad click-through handler
+com.amazon.ftvads.deeplinking      # ad click-through handler (protected per cleanyourtv)
 com.amazon.hybridadidservice       # advertising ID service
 com.amazon.sneakpeek               # autoplaying sponsored previews on home
 com.amazon.shoptv.client           # Shop TV
@@ -19,8 +19,8 @@ com.amazon.media.recommendations   # recommendation rows for the stock home
 
 # Telemetry, logging, crash upload
 com.amazon.logan
-com.amazon.device.logmanager
-com.amazon.device.crashmanager
+com.amazon.device.logmanager       # protected per cleanyourtv
+com.amazon.device.crashmanager     # protected per cleanyourtv
 com.amazon.perfcollection
 com.amazon.tv.fw.metrics
 com.amazon.wirelessmetrics.service
@@ -53,3 +53,28 @@ com.amazon.tmm.tutorial
 com.amazon.tv.releasenotes
 com.amazon.tv.easyupgrade
 com.amazon.tv.website_launcher
+
+# From cleanyourtv's list for this stick (examples/amazon-fire-tv-stick-2020, Fire OS 7.7.1.7, rebooted
+# twice with all of them off; Alexa voice search from the remote keeps working, which Fireglass's
+# voice redirect needs). tools/disable.sh reports any Fire OS refuses.
+com.amazon.client.metrics.api
+com.amazon.neo.minerva
+com.amazon.perfc
+com.amazon.ceviche                 # data collection pipelines
+com.amazon.livedeviceservice
+com.amazon.privacypassservice
+com.amazon.wifilocker              # uploads Wi-Fi passwords to Amazon
+com.amazon.kso.blackbird           # launcher ad sync / bidding
+com.amazon.providers.contentsupport
+com.amazon.hedwig                  # Fire TV Channels
+com.amazon.franktvinput            # live TV input for the Live tab
+com.amazon.systemnotices
+com.amazon.uxnotification          # UX notification popups
+com.amazon.naatyam
+com.amazon.tv.ffsprovisioneeclient
+com.amazon.ods.kindleconnect       # "show on Fire TV" from Echo / Fire tablet
+com.amazon.alexa.externalmediaplayer.fireos   # Alexa music playback
+com.amazon.alexamediaplayer.runtime.ftv
+com.amazon.aiondec                 # Alexa skill connections
+com.amazon.audiohome               # Alexa Home Theater
+com.amazon.aca                     # Alexa hints, ~44 MB resident

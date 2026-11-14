@@ -146,7 +146,7 @@ final class Look {
     /** Top left: the time large, and beside it a greeting over the date and weather. */
     static final class TopBar {
         final LinearLayout view;
-        final TextView clock, ampm, greeting, date, weather;
+        final TextView clock, ampm, greeting, date, weather, stats;
 
         TopBar(Context c) {
             view = new LinearLayout(c);
@@ -175,10 +175,16 @@ final class Look {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.setMargins(0, dp(c, 2), 0, 0);
             side.addView(line, lp);
+            // Free memory and storage (HomeSettings: System stats), for 1 GB sticks.
+            stats = text(c, sans(c, 500), 12, 0x80FFFFFF);
+            stats.setVisibility(View.GONE);
+            LinearLayout.LayoutParams stp = new LinearLayout.LayoutParams(-2, -2);
+            stp.setMargins(0, dp(c, 2), 0, 0);
+            side.addView(stats, stp);
             LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
             sp.setMargins(dp(c, 18), 0, 0, 0);
             view.addView(side, sp);
-            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather}) Look.shadow(t, dp(c, 12), 0, dp(c, 1), 0x66000000);
+            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather, stats}) Look.shadow(t, dp(c, 12), 0, dp(c, 1), 0x66000000);
             update(c);
         }
 
@@ -186,8 +192,9 @@ final class Look {
         void onPhoto(Context c, boolean photo) {
             date.setTextColor(photo ? 0xE6FFFFFF : 0x99FFFFFF);
             weather.setTextColor(photo ? 0xE6FFFFFF : 0x99FFFFFF);
+            stats.setTextColor(photo ? 0xCCFFFFFF : 0x80FFFFFF);
             ampm.setTextColor(photo ? 0xE6FFFFFF : 0xB3FFFFFF);
-            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather}) {
+            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather, stats}) {
                 Look.shadow(t, dp(c, photo ? 5 : 12), 0, dp(c, 1), photo ? 0xD9000000 : 0x66000000);
             }
         }
@@ -198,8 +205,25 @@ final class Look {
             boolean is24 = android.text.format.DateFormat.is24HourFormat(c);
             clock.setText(new SimpleDateFormat(is24 ? "H:mm" : "h:mm", Locale.getDefault()).format(now.getTime()));
             ampm.setText(is24 ? "" : h < 12 ? "am" : "pm");
-            greeting.setText(h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+            String name = HomeSettings.greetingName(c);
+            greeting.setText((h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening")
+                    + (name.isEmpty() ? "" : ", " + name));
+            boolean showStats = HomeSettings.get(c, HomeSettings.STATS) == 1;
+            stats.setVisibility(showStats ? View.VISIBLE : View.GONE);
+            if (showStats) stats.setText(systemStats(c));
             date.setText(new SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(now.getTime()));
+        }
+
+        /** "Memory 245 MB free · Storage 2.1 GB free". */
+        static String systemStats(Context c) {
+            android.app.ActivityManager.MemoryInfo m = new android.app.ActivityManager.MemoryInfo();
+            ((android.app.ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(m);
+            long disk = new android.os.StatFs(android.os.Environment.getDataDirectory().getPath()).getAvailableBytes();
+            return "Memory " + size(m.availMem) + " free  ·  Storage " + size(disk) + " free";
+        }
+
+        private static String size(long b) {
+            return b >= 1L << 30 ? String.format(Locale.ROOT, "%.1f GB", b / (double) (1L << 30)) : (b >> 20) + " MB";
         }
 
         FrameLayout.LayoutParams lp(Context c) {

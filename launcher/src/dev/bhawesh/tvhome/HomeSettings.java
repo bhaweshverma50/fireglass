@@ -2,6 +2,7 @@ package dev.bhawesh.tvhome;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -23,7 +24,10 @@ public class HomeSettings extends Activity {
     // ---------------------------------------------------------------- stored values
 
     static final String STYLE = "style", LOOK = "look", RECENT = "rows_recent", TRENDING = "rows_trending",
-            MOTION = "motion", WEATHER = "weather", SAVER = "screensaver", NAV = "nav_icons";
+            MOTION = "motion", WEATHER = "weather", SAVER = "screensaver", NAV = "nav_icons",
+            STATS = "stats", ROTATE = "wall_rotate", GREETING = "greeting_name", BUTTONS = "buttons";
+    /** Wallpaper changes, in minutes, by ROTATE's value. */
+    static final int[] ROTATE_MIN = {0, 15, 60, 24 * 60};
     static final int STYLE_FEATURED = 0, STYLE_MINIMAL = 1;
 
     static SharedPreferences prefs(Context c) {
@@ -34,6 +38,27 @@ public class HomeSettings extends Activity {
         // Defaults: featured titles, live sky, both rows on, full motion, weather on, clock screensaver.
         int def = key.equals(RECENT) || key.equals(TRENDING) || key.equals(WEATHER) || key.equals(SAVER) ? 1 : 0;
         return prefs(c).getInt(key, def);
+    }
+
+    static String greetingName(Context c) { return prefs(c).getString(GREETING, ""); }
+
+    /** Apps kept off the home: config.xml's list, Fireglass itself, and the ones hidden on the TV. */
+    static java.util.Set<String> hiddenApps(Context c) {
+        java.util.Set<String> h = new java.util.HashSet<>(java.util.Arrays.asList(c.getResources().getStringArray(R.array.hidden_apps)));
+        h.add(c.getPackageName());
+        h.addAll(userHidden(c));
+        return h;
+    }
+
+    /** Hidden from the tile menu (Hide from home); the gear menu's Hidden apps brings them back. */
+    static java.util.Set<String> userHidden(Context c) {
+        return new java.util.TreeSet<>(prefs(c).getStringSet("hidden_user", java.util.Collections.emptySet()));
+    }
+
+    static void setHidden(Context c, String pkg, boolean hide) {
+        java.util.Set<String> h = userHidden(c);
+        if (hide) h.add(pkg); else h.remove(pkg);
+        prefs(c).edit().putStringSet("hidden_user", h).apply();
     }
 
     /** Bumped on every change so the home screen knows to rebuild. */
@@ -47,6 +72,8 @@ public class HomeSettings extends Activity {
         Row(String key, String label, String hint, String... values) {
             this.key = key; this.label = label; this.hint = hint; this.values = values;
         }
+        /** Opens something on OK instead of cycling values. */
+        boolean action() { return values.length == 0; }
         boolean toggle() { return values.length == 2 && (values[1].equals("Shown") || values[1].equals("On")); }
     }
 
@@ -57,16 +84,21 @@ public class HomeSettings extends Activity {
                     "Featured titles", "Minimal"),
             new Row(LOOK, "Background", "Live sky follows the time of day, from dawn peach to night indigo. The colour washes stay fixed. Wallpaper shows the picture you choose in the phone app.",
                     SkyView.LOOKS),
+            new Row(ROTATE, "Wallpaper changes", "With Background on Wallpaper, a different one of your pictures comes up this often.",
+                    "Never", "Every 15 min", "Every hour", "Every day"),
             new Row(NAV, "Top bar", "Labels names each button. Icons only keeps the bar small, and the name shows under the button you're on.",
                     "Labels", "Icons only"),
+            new Row(GREETING, "Greeting name", "A name after the greeting: Good evening, Sam. Press OK to type it; leave it empty for none."),
             "Home rows",
             new Row(RECENT, "Recently watched", "What you've played lately, with the app it was on. Hold OK on a title there to remove it.", "Hidden", "Shown"),
             new Row(TRENDING, "Trending rows", "A row for each of your apps with what's popular on it right now.", "Hidden", "Shown"),
             new Row(WEATHER, "Weather", "Temperature and conditions next to the date, for where the TV is.", "Hidden", "Shown"),
+            new Row(STATS, "System stats", "Free memory and storage under the date. Handy on a 1 GB stick, to see what an app left behind.", "Hidden", "Shown"),
             "Feel",
             new Row(MOTION, "Motion", "Calm drops the light streaks and springy lifts for quieter, quicker focus moves.", "Full", "Calm"),
             new Row(SAVER, "Screensaver", "What shows when the TV sits idle: a clock, trending posters, your photos, the sky, or a different one each time.",
                     Screensaver.STYLES),
+            new Row(BUTTONS, "Remote buttons", "Give your remote's buttons another job: open an app, Search, quick settings, mute. A press and a hold can each do something."),
             "Lights",
             new Row(Lights.DIM, "Dim while playing", "When a show or video starts, WiZ lights on this Wi-Fi fade low and warm. They come back as they were when it stops.",
                     "Off", "On"),
@@ -74,6 +106,7 @@ public class HomeSettings extends Activity {
                     "Off", "On"),
     };
 
+    private final java.util.List<Runnable> shows = new java.util.ArrayList<>();
     private SkyView sky, previewSky;
     private View dim;
     private Look.Glass panelGlass;
@@ -181,6 +214,8 @@ public class HomeSettings extends Activity {
                 h.setText((String) o);
                 list.addView(h, lp(-2, -2, dp(16), list.getChildCount() == 0 ? dp(6) : dp(16), 0, dp(6)));
             } else {
+                // Remote buttons need HomeService's key filter, which Fire OS 5 doesn't allow.
+                if (((Row) o).key.equals(BUTTONS) && android.os.Build.VERSION.SDK_INT < 23) continue;
                 View v = row((Row) o);
                 list.addView(v, new LinearLayout.LayoutParams(-1, dp(46)));
                 if (first == null) first = v;
@@ -208,19 +243,23 @@ public class HomeSettings extends Activity {
 
         Toggle toggle = r.toggle() ? new Toggle(this) : null;
         TextView value = Look.text(this, Look.sans(this, 500), 14, 0xB3FFFFFF);
-        Dots dots = toggle == null ? new Dots(this, r.values.length) : null;
-        if (toggle != null) {
+        Dots dots = toggle == null && !r.action() ? new Dots(this, r.values.length) : null;
+        if (r.action()) {
+            v.addView(value);
+        } else if (toggle != null) {
             v.addView(toggle, new LinearLayout.LayoutParams(dp(36), dp(22)));
         } else {
             v.addView(value);
             v.addView(dots, lp(dp(6 * 1.8f * r.values.length), dp(6), dp(12), 0, 0, 0));
         }
         Runnable show = () -> {
+            if (r.action()) { value.setText(actionValue(r.key)); return; }
             int i = get(this, r.key);
             if (toggle != null) toggle.set(i == 1);
             else { value.setText(r.values[i]); dots.set(i); }
         };
         show.run();
+        shows.add(show);
 
         v.setOnFocusChangeListener((x, has) -> {
             int ink = has ? 0xFF16161C : Color.WHITE;
@@ -241,6 +280,10 @@ public class HomeSettings extends Activity {
             int step = code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_DPAD_CENTER
                     || code == KeyEvent.KEYCODE_ENTER ? 1 : code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 0;
             if (step == 0) return false;
+            if (r.action()) {
+                if (step == 1) act(r.key, show);
+                return true;
+            }
             int n = r.values.length, next = ((get(this, r.key) + step) % n + n) % n;
             prefs(this).edit().putInt(r.key, next).putInt("settings_version", version(this) + 1).apply();
             show.run();
@@ -256,6 +299,38 @@ public class HomeSettings extends Activity {
             return true;
         });
         return v;
+    }
+
+    private String actionValue(String key) {
+        if (key.equals(GREETING)) { String n = greetingName(this); return n.isEmpty() ? "None" : n; }
+        if (key.equals(BUTTONS)) { int n = Buttons.count(this); return n == 0 ? "Set up" : n + " set"; }
+        return "";
+    }
+
+    private void act(String key, Runnable refresh) {
+        if (key.equals(BUTTONS)) { startActivity(new Intent(this, Buttons.Setup.class)); return; }
+        if (key.equals(GREETING)) {
+            android.widget.EditText field = new android.widget.EditText(this);
+            field.setSingleLine(true);
+            field.setText(greetingName(this));
+            field.setSelection(field.length());
+            field.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(20)});
+            new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("Name in the greeting")
+                    .setView(field)
+                    .setPositiveButton("Save", (d, w) -> {
+                        prefs(this).edit().putString(GREETING, field.getText().toString().trim())
+                                .putInt("settings_version", version(this) + 1).apply();
+                        refresh.run();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        }
+    }
+
+    @Override protected void onRestart() {
+        super.onRestart();
+        for (Runnable r : shows) r.run(); // back from Remote buttons: its count may have changed
     }
 
     private void movePuck(View row) {

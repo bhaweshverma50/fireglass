@@ -452,8 +452,7 @@ final class RemoteServer {
 
     private JSONArray apps() throws JSONException {
         PackageManager pm = svc.getPackageManager();
-        Set<String> hidden = new HashSet<>(Arrays.asList(svc.getResources().getStringArray(R.array.hidden_apps)));
-        hidden.add(svc.getPackageName());
+        Set<String> hidden = HomeSettings.hiddenApps(svc);
         List<String> pinned = MainActivity.dockOrder(svc);
         JSONArray pinnedArr = new JSONArray(), rest = new JSONArray();
         Map<String, JSONObject> byPkg = new HashMap<>();

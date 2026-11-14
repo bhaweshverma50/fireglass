@@ -5,6 +5,7 @@
     android:versionName="1.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Fire OS 5 only (Legacy): follow ActivityManager's log for the Home button, granted over ADB
          at install; and the pairing code over other apps (granted at install before Android 6). -->
     <uses-permission android:name="android.permission.READ_LOGS" />
@@ -67,6 +68,12 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
 
         <activity
+            android:name=".Buttons$Setup"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
+
+        <activity
             android:name=".LightsActivity"
             android:exported="false"
             android:screenOrientation="landscape"
@@ -98,8 +105,11 @@
             </intent-filter>
         </service>
 
-        <!-- Fire OS 5: reopen after an update (Legacy). -->
-        <receiver android:name=".Legacy$Updated" android:exported="false">
+        <!-- Open at boot, and on Fire OS 5 after an update (Legacy.Updated). -->
+        <receiver android:name=".Legacy$Updated" android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>

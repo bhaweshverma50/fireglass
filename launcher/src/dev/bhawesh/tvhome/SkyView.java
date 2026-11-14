@@ -49,7 +49,11 @@ final class SkyView extends View {
 
     /** Which of {@link #LOOKS}. Wallpaper with no picture set shows the live sky. */
     void setLook(int i) {
+        int[] next = i == WALLPAPER ? null : LOOK_PALETTES[Math.max(0, Math.min(i, LOOK_PALETTES.length - 1))];
+        // A different background: the old one fades out over the new.
+        if (getWidth() > 0 && isShown() && ((i == WALLPAPER) != wallpaper || next != fixed)) snapshot();
         wallpaper = i == WALLPAPER;
+        if (!wallpaper) shownWall = null;
         fixed = wallpaper ? null : LOOK_PALETTES[Math.max(0, Math.min(i, LOOK_PALETTES.length - 1))];
         invalidate();
     }
@@ -81,6 +85,33 @@ final class SkyView extends View {
     private final float[] pal = new float[12];
     private final float[] bx = new float[4], by = new float[4], reach = new float[4], str = new float[4];
     private final Paint skyPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Paint fadePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    // Background changes fade: the old picture (or a snapshot of the old sky) over the new one.
+    private static final long FADE_MS = 900;
+    private Bitmap shownWall, fadingFrom;
+    private boolean ownFade; // fadingFrom is our snapshot, not Wallpapers' bitmap: recycle it after
+    private long fadeAt;
+
+    /** What's on screen now, to fade out from. */
+    private void snapshot() {
+        endFade();
+        fadeAt = SystemClock.uptimeMillis();
+        if (wallpaper && shownWall != null) { fadingFrom = shownWall; return; } // a GPU bitmap: can't be redrawn, reuse it
+        if (sky == null) return;
+        // The sky at half size is plenty for something fading away.
+        Bitmap b = Bitmap.createBitmap(Math.max(1, getWidth() / 2), Math.max(1, getHeight() / 2), Bitmap.Config.RGB_565);
+        Canvas cv = new Canvas(b);
+        dst.set(0, 0, b.getWidth(), b.getHeight());
+        cv.drawBitmap(sky, null, dst, skyPaint);
+        fadingFrom = b;
+        ownFade = true;
+    }
+
+    private void endFade() {
+        if (ownFade && fadingFrom != null) fadingFrom.recycle();
+        fadingFrom = null;
+        ownFade = false;
+    }
     private final Paint grain = new Paint();
     private final Rect dst = new Rect();
     private static final boolean GRAIN = !Look.LITE;
@@ -138,21 +169,44 @@ final class SkyView extends View {
     }
 
     @Override protected void onDraw(Canvas c) {
-        Bitmap wall = wallpaper ? Wallpapers.backdrop(getContext(), this::invalidate) : null;
-        if (wall != null) {
-            // A still picture: one draw, no redraw loop.
-            dst.set(0, 0, getWidth(), getHeight());
-            c.drawBitmap(wall, null, dst, skyPaint);
-            return;
-        }
         long now = SystemClock.uptimeMillis();
-        if (now >= holdUntil) render(now);
-        dst.set(0, 0, getWidth(), getHeight());
-        c.drawBitmap(sky, null, dst, skyPaint);
-        if (grainOn) c.drawPaint(grain);
-        if (!running) return;
+        boolean still = drawBackground(c, now);
+        if (fadingFrom != null) {
+            float t = Math.min(1f, (now - fadeAt) / (float) FADE_MS);
+            if (t >= 1f) {
+                endFade();
+            } else {
+                dst.set(0, 0, getWidth(), getHeight());
+                float e = t * t * (3 - 2 * t);
+                fadePaint.setAlpha(Math.round(255 * (1 - e)));
+                c.drawBitmap(fadingFrom, null, dst, fadePaint);
+                postInvalidateOnAnimation();
+            }
+        }
+        if (still || !running) return;
         if (now < holdUntil) postInvalidateDelayed(holdUntil - now);
         else postInvalidateDelayed(Math.abs(now - accentAt) < ACCENT_MS ? 33 : 66);
+    }
+
+    /** The picture, or the sky; true for a still picture (no redraw loop needed). */
+    private boolean drawBackground(Canvas c, long now) {
+        Bitmap wall = wallpaper ? Wallpapers.backdrop(getContext(), this::invalidate) : null;
+        if (wall != null && wall != shownWall) {
+            // A new picture: the one before it fades out over it.
+            if (shownWall != null) { endFade(); fadingFrom = shownWall; fadeAt = now; }
+            shownWall = wall;
+        }
+        // While the next one loads, keep the last one up rather than flashing the sky.
+        if (wall == null && wallpaper) wall = shownWall;
+        dst.set(0, 0, getWidth(), getHeight());
+        if (wall != null) {
+            c.drawBitmap(wall, null, dst, skyPaint);
+            return true;
+        }
+        if (now >= holdUntil) render(now);
+        c.drawBitmap(sky, null, dst, skyPaint);
+        if (grainOn) c.drawPaint(grain);
+        return false;
     }
 
     private void render(long now) {

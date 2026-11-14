@@ -138,7 +138,7 @@ public class MainActivity extends Activity {
     private ConnectivityManager.NetworkCallback netWatch;
 
     private final BroadcastReceiver tick = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { bar.update(MainActivity.this); updateWifi(); }
+        @Override public void onReceive(Context c, Intent i) { bar.update(MainActivity.this); updateWifi(); Wallpapers.rotate(c); }
     };
     private final BroadcastReceiver packages = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { buildApps(); }
@@ -149,8 +149,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        hidden.addAll(Arrays.asList(getResources().getStringArray(R.array.hidden_apps)));
-        hidden.add(getPackageName());
         dockPkgs.addAll(dockOrder(this));
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -183,6 +181,7 @@ public class MainActivity extends Activity {
         Lights.atHome(this, true);
         bar.update(this);
         updateWifi();
+        Wallpapers.rotate(this); // due while away: change before the home shows
         if (HomeSettings.version(this) != appliedSettings) applySettings();
         showSky(true);
         if (android.os.Build.VERSION.SDK_INT >= 26 && getPackageManager().getChangedPackages(packageSeq) != null) buildApps();
@@ -606,6 +605,8 @@ public class MainActivity extends Activity {
             if (changed != null) packageSeq = changed.getSequenceNumber();
         }
         Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
+        hidden.clear();
+        hidden.addAll(HomeSettings.hiddenApps(this));
         Map<String, App> byPkg = new HashMap<>();
         for (ResolveInfo ri : pm.queryIntentActivities(q, 0)) {
             ActivityInfo ai = ri.activityInfo;
@@ -1416,6 +1417,11 @@ public class MainActivity extends Activity {
         }
         rows.add(optionRow("App info", () -> launch(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                 Uri.parse("package:" + app.pkg)))));
+        rows.add(optionRow("Hide from home", () -> {
+            HomeSettings.setHidden(this, app.pkg, true);
+            if (i >= 0) pinned.remove(i);
+            saveDock(pinned, null); // rebuilds the row without it
+        }));
         showSheet(card, rows, (card.getWidth() - dp(SHEET_W)) / 2);
     }
 
@@ -1454,8 +1460,26 @@ public class MainActivity extends Activity {
             if (!HomeService.openAmazonSettings(this)) launch(new Intent().setClassName(HomeService.AMAZON_HOME,
                     HomeService.AMAZON_HOME + ".ui.MainSettingsActivity").addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK));
         }));
+        if (!HomeSettings.userHidden(this).isEmpty()) rows.add(optionRow("Hidden apps", () -> showHidden(anchor)));
         rows.add(0, optionRow("Customise home", () -> startActivity(new Intent(this, HomeSettings.class))));
         showSheet(anchor, rows, anchor.getWidth() - dp(SHEET_W));
+    }
+
+    /** Apps hidden from the tile menu; picking one puts it back on the home. */
+    private void showHidden(View anchor) {
+        PackageManager pm = getPackageManager();
+        List<TextView> rows = new ArrayList<>();
+        for (String pkg : HomeSettings.userHidden(this)) {
+            String label;
+            try { label = String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0))); }
+            catch (PackageManager.NameNotFoundException gone) { HomeSettings.setHidden(this, pkg, false); continue; }
+            rows.add(optionRow("Show " + label, () -> {
+                HomeSettings.setHidden(this, pkg, false);
+                focusPkg = pkg;
+                buildApps();
+            }));
+        }
+        if (!rows.isEmpty()) showSheet(anchor, rows, anchor.getWidth() - dp(SHEET_W));
     }
 
     private static final int SHEET_W = 260;

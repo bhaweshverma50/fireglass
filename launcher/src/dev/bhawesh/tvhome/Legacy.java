@@ -242,10 +242,17 @@ final class Legacy implements RemoteServer.Host {
                 ((WindowManager) c.getSystemService(Context.WINDOW_SERVICE)).removeViewImmediate(v));
     }
 
-    /** After an update Android leaves Amazon's home up and no Home press follows: come back. */
+    /**
+     * Boot, and on Fire OS 5 an update: Amazon's home is up and no Home press follows, so come
+     * back. Priority 999 on boot: at the default Fire OS delivers it ~40 s late (cleanyourtv).
+     */
     public static final class Updated extends android.content.BroadcastReceiver {
         @Override public void onReceive(Context c, Intent i) {
-            if (android.os.Build.VERSION.SDK_INT >= 23) return; // HomeService covers Fire OS 7 and later
+            boolean boot = Intent.ACTION_BOOT_COMPLETED.equals(i.getAction());
+            boolean legacy = android.os.Build.VERSION.SDK_INT < 23;
+            // Fire OS 5 handles boot in Legacy (and delivered this ~3 min late in testing); updates are
+            // HomeService's on Fire OS 7. A late boot broadcast must not pull someone out of an app.
+            if (boot ? legacy || SystemClock.elapsedRealtime() > 120_000 : !legacy) return;
             c.startActivity(new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
     }
