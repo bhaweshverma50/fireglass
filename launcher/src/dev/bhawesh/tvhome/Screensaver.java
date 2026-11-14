@@ -231,7 +231,9 @@ public class Screensaver extends DreamService {
         if (titles == null) titles = Catalog.recs(this);
         if (titles.length() == 0) return;
         JSONObject t = titles.getJSONObject(index++ % titles.length());
-        Bitmap src = Net.image(this, t.optString("backdrop", null), 700);
+        // Full screen: JustWatch's 1920 wide size, decoded whole.
+        String url = t.optString("backdrop", null);
+        Bitmap src = Net.image(this, url == null ? null : url.replace("/s1440/", "/s1920/"), w);
         if (src == null) return;
         Bitmap b = HeroView.bake(src, w, h);
         src.recycle();

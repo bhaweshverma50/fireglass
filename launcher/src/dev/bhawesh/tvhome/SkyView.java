@@ -86,6 +86,25 @@ final class SkyView extends View {
     private final float[] bx = new float[4], by = new float[4], reach = new float[4], str = new float[4];
     private final Paint skyPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint fadePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    // Darkens a wallpaper behind a featured title: a colour filter on the one draw, no extra layer.
+    private static final long DIM_MS = 450;
+    private float dimFrom, dimTo;
+    private long dimAt;
+
+    /** 0 = the wallpaper as is, 1 = black; eases there. Only pictures dim, not the sky. */
+    void setWallDim(float level) {
+        float now = wallDim(SystemClock.uptimeMillis());
+        if (level == dimTo) return;
+        dimFrom = now;
+        dimTo = level;
+        dimAt = SystemClock.uptimeMillis();
+        invalidate();
+    }
+
+    private float wallDim(long now) {
+        float t = Math.min(1f, (now - dimAt) / (float) DIM_MS);
+        return dimFrom + (dimTo - dimFrom) * t * t * (3 - 2 * t);
+    }
     // Background changes fade: the old picture (or a snapshot of the old sky) over the new one.
     private static final long FADE_MS = 900;
     private Bitmap shownWall, fadingFrom;
@@ -200,7 +219,17 @@ final class SkyView extends View {
         if (wall == null && wallpaper) wall = shownWall;
         dst.set(0, 0, getWidth(), getHeight());
         if (wall != null) {
-            c.drawBitmap(wall, null, dst, skyPaint);
+            float d = wallDim(now);
+            if (d > 0.005f) {
+                int g = Math.round(255 * (1 - d));
+                fadePaint.setColorFilter(new android.graphics.LightingColorFilter(Color.rgb(g, g, g), 0));
+                fadePaint.setAlpha(255);
+                c.drawBitmap(wall, null, dst, fadePaint);
+                fadePaint.setColorFilter(null);
+            } else {
+                c.drawBitmap(wall, null, dst, skyPaint);
+            }
+            if (now - dimAt < DIM_MS) { postInvalidateOnAnimation(); return false; }
             return true;
         }
         if (now >= holdUntil) render(now);

@@ -119,6 +119,9 @@ export class TvClient {
   }
   deleteWallpaper(name: string) { return this.req<Ok>(`/api/wallpapers?name=${encodeURIComponent(name)}`, { method: 'DELETE' }); }
   setBackground(name: string | null) { return this.req<Ok>('/api/wallpapers/background', { method: 'POST', body: { name } }); }
+  /** Either field may be sent alone; names null = every picture rotates. */
+  setRotation(p: { every?: number; names?: string[] | null }) { return this.req<Ok>('/api/wallpapers/rotation', { method: 'POST', body: p }); }
+  nextWallpaper() { return this.req<{ ok: boolean; name?: string }>('/api/wallpapers/next', { method: 'POST' }); }
 
   // lights: WiZ bulbs on the TV's Wi-Fi; every call answers with the whole state
   lights() { return this.req<Lights>('/api/lights', { timeout: 15000 }); }

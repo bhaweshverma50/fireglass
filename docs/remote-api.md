@@ -95,7 +95,9 @@ can be the home's background (Customise home → Background → Wallpaper).
 | GET | `/api/wallpapers/thumb?name=<name>` | | JPEG, 320x180 |
 | POST | `/api/wallpapers` (`?use=background` to also set it) | the image file itself (JPEG, PNG, WebP or HEIF), up to 25 MB, with `Content-Length` | `{"ok":true,"name":"up-….jpg"}` or `400 {"error":"not_an_image"}` |
 | DELETE | `/api/wallpapers?name=<name>` | | `{"ok":true}`; if it was the background, the home goes back to Live sky |
-| POST | `/api/wallpapers/background` | `{"name":"up-….jpg"}` or `{"name":null}` | `{"ok":true}`; the home switches at once |
+| POST | `/api/wallpapers/background` | `{"name":"up-….jpg"}` or `{"name":null}` | `{"ok":true}`; the home switches at once (and the rotation interval starts over) |
+| POST | `/api/wallpapers/rotation` | `{"every":60,"names":["a.jpg",…]}`, either field alone | `{"ok":true}`. `every`: minutes between changes, 0 (never), 15, 60 or 1440; above 0 also puts a picture up if the background is a sky. `names`: the pictures that rotate, `null` for all of them. `GET /api/wallpapers` reports both as `rotation` and each item's `rotate` |
+| POST | `/api/wallpapers/next` | | `{"ok":true,"name":"….jpg"}`: the next picture in the rotation, now (every picture once, shuffled, before repeats) |
 
 The TV turns each upload upright (EXIF), crops it to 16:9 from the centre and stores a 1920x1080
 JPEG, whatever size the phone sent. The upload is streamed to a temp file, never held whole in memory.

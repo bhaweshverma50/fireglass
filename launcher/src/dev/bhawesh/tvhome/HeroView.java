@@ -118,7 +118,13 @@ final class HeroView extends View {
      * across the screen), melting into transparency on its left and bottom edges so the sky shows
      * through behind the text. Panel-sized (draw with {@link #setPanel}); HARDWARE like {@link #bake}.
      */
-    static Bitmap bakeRight(Bitmap src, int screenW) {
+    static Bitmap bakeRight(Bitmap src, int screenW) { return bakeRight(src, screenW, false); }
+
+    /**
+     * {@code solid}: over a wallpaper. Long see-through fades there leave two photos showing
+     * through each other; short soft edges keep the picture whole (the wallpaper dims behind it).
+     */
+    static Bitmap bakeRight(Bitmap src, int screenW, boolean solid) {
         float rw = Math.round(screenW * PANEL), rh = Math.round(rw * 9 / 16), x = 0, w = rw;
         Bitmap out = Bitmap.createBitmap((int) rw, (int) rh, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(out);
@@ -135,11 +141,11 @@ final class HeroView extends View {
         p.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN));
         // Eased fades (a straight ramp leaves a visible line where it starts): long on the left,
         // where the text is, and on the top and bottom, so no edge of the picture shows.
-        p.setShader(new LinearGradient(x, 0, x + rw * 0.62f, 0, ease(false), easeStops(), Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(x, 0, x + rw * (solid ? 0.26f : 0.62f), 0, ease(false), easeStops(), Shader.TileMode.CLAMP));
         c.drawRect(x, 0, w, rh, p);
-        p.setShader(new LinearGradient(0, 0, 0, rh * 0.34f, ease(false), easeStops(), Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(0, 0, 0, rh * (solid ? 0.1f : 0.34f), ease(false), easeStops(), Shader.TileMode.CLAMP));
         c.drawRect(x, 0, w, rh, p);
-        p.setShader(new LinearGradient(0, rh * 0.5f, 0, rh, ease(true), easeStops(), Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(0, rh * (solid ? 0.74f : 0.5f), 0, rh, ease(true), easeStops(), Shader.TileMode.CLAMP));
         c.drawRect(x, 0, w, rh, p);
         return Look.gpu(out);
     }

@@ -25,7 +25,7 @@ public class HomeSettings extends Activity {
 
     static final String STYLE = "style", LOOK = "look", RECENT = "rows_recent", TRENDING = "rows_trending",
             MOTION = "motion", WEATHER = "weather", SAVER = "screensaver", NAV = "nav_icons",
-            STATS = "stats", ROTATE = "wall_rotate", GREETING = "greeting_name", BUTTONS = "buttons";
+            STATS = "stats", ROTATE = "wall_rotate", GREETING = "greeting_name", BUTTONS = "buttons", WALLS = "walls";
     /** Wallpaper changes, in minutes, by ROTATE's value. */
     static final int[] ROTATE_MIN = {0, 15, 60, 24 * 60};
     static final int STYLE_FEATURED = 0, STYLE_MINIMAL = 1;
@@ -82,9 +82,10 @@ public class HomeSettings extends Activity {
             "Look",
             new Row(STYLE, "Home style", "Featured titles shows what's trending on your apps above them. Minimal keeps just your apps over the background.",
                     "Featured titles", "Minimal"),
-            new Row(LOOK, "Background", "Live sky follows the time of day, from dawn peach to night indigo. The colour washes stay fixed. Wallpaper shows the picture you choose in the phone app.",
+            new Row(LOOK, "Background", "Live sky follows the time of day, from dawn peach to night indigo. The colour washes stay fixed. Wallpaper shows one of your pictures: the one picked on the phone or in Wallpapers below.",
                     SkyView.LOOKS),
-            new Row(ROTATE, "Wallpaper changes", "With Background on Wallpaper, a different one of your pictures comes up this often.",
+            new Row(WALLS, "Wallpapers", "Your pictures. OK on one adds it to the rotation or takes it out; hold OK to show it now. Add more from the phone app."),
+            new Row(ROTATE, "Wallpaper changes", "Another picture from the rotation comes up this often, each one once before any repeats. Picking one starts the wait over. Turning this on switches Background to Wallpaper.",
                     "Never", "Every 15 min", "Every hour", "Every day"),
             new Row(NAV, "Top bar", "Labels names each button. Icons only keeps the bar small, and the name shows under the button you're on.",
                     "Labels", "Icons only"),
@@ -292,7 +293,14 @@ public class HomeSettings extends Activity {
                 value.setAlpha(0.3f);
                 value.animate().translationX(0f).alpha(1f).setDuration(Look.ms(this, 220)).start();
             }
-            if (r.key.equals(LOOK)) { sky.setLook(next); previewSky.setLook(next); legible(next); }
+            // Wallpaper with no picture yet, or an interval while a sky shows: put one up (Wallpapers.next).
+            if (r.key.equals(LOOK) && next == SkyView.WALLPAPER && Wallpapers.background(this) == null) Wallpapers.next(this);
+            if (r.key.equals(ROTATE)) Wallpapers.setEvery(this, ROTATE_MIN[next]);
+            if (r.key.equals(LOOK) || r.key.equals(ROTATE)) {
+                int look = get(this, LOOK);
+                sky.setLook(look); previewSky.setLook(look); legible(look);
+                for (Runnable s : shows) s.run();
+            }
             if (r.key.equals(STYLE) || r.key.equals(RECENT) || r.key.equals(WEATHER)) preview.invalidate();
             if (r.key.equals(SAVER)) Screensaver.apply(this);
             if (r.key.equals(MOTION) || r.key.equals(SAVER)) preview.restart();
@@ -304,11 +312,17 @@ public class HomeSettings extends Activity {
     private String actionValue(String key) {
         if (key.equals(GREETING)) { String n = greetingName(this); return n.isEmpty() ? "None" : n; }
         if (key.equals(BUTTONS)) { int n = Buttons.count(this); return n == 0 ? "Set up" : n + " set"; }
+        if (key.equals(WALLS)) {
+            int all = Wallpapers.names().size();
+            java.util.Set<String> rot = Wallpapers.rotation(this);
+            return all == 0 ? "None yet" : rot == null ? all + " pictures" : rot.size() + " of " + all + " rotate";
+        }
         return "";
     }
 
     private void act(String key, Runnable refresh) {
         if (key.equals(BUTTONS)) { startActivity(new Intent(this, Buttons.Setup.class)); return; }
+        if (key.equals(WALLS)) { startActivity(new Intent(this, Wallpapers.Picker.class)); return; }
         if (key.equals(GREETING)) {
             android.widget.EditText field = new android.widget.EditText(this);
             field.setSingleLine(true);

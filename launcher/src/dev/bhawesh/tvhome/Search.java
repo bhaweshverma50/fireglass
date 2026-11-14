@@ -369,7 +369,7 @@ public class Search extends Activity {
         StringBuilder meta = new StringBuilder(offer.optString("label"));
         if (offers.length() > 1) meta.append(" +").append(offers.length() - 1);
         if (t.optInt("year") > 0) meta.append(" · ").append(t.optInt("year"));
-        View card = tile(t.optString("poster", t.optString("thumb", null)), dp(POSTER_W) * 3 / 2, null,
+        View card = tile(t.optString("poster", t.optString("thumb", null)), dp(POSTER_W), dp(POSTER_W) * 3 / 2, null,
                 t.optString("title"), 1, meta.toString());
         card.setOnClickListener(v -> {
             if (Catalog.open(this, offer)) io.execute(() -> {
@@ -381,14 +381,14 @@ public class Search extends Activity {
 
     /** A YouTube video: its 16:9 thumbnail with the length on it, title and channel; plays in YouTube. */
     private View videoCard(JSONObject v) {
-        View card = tile(v.optString("thumb"), dp(VIDEO_W) * 9 / 16, v.optString("length"),
+        View card = tile(v.optString("thumb"), dp(VIDEO_W), dp(VIDEO_W) * 9 / 16, v.optString("length"),
                 v.optString("title"), 2, v.optString("channel"));
         card.setOnClickListener(x -> Catalog.playYouTubeVideo(this, v.optString("id")));
         return card;
     }
 
     /** Picture (with an optional badge in its corner) over a name and a dim line; focus lifts the picture. */
-    private View tile(String url, int pictureH, String badge, String title, int titleLines, String line) {
+    private View tile(String url, int pictureW, int pictureH, String badge, String title, int titleLines, String line) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setClipChildren(false);
@@ -443,7 +443,7 @@ public class Search extends Activity {
             if (has) scrollTo(card);
         });
         io.execute(() -> {
-            Bitmap bm = Net.image(this, url, 260);
+            Bitmap bm = Net.image(this, url, Math.round(pictureW * 1.1f)); // its size when lifted
             if (bm != null) runOnUiThread(() -> img.setImageBitmap(bm));
         });
         return card;

@@ -68,6 +68,12 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
 
         <activity
+            android:name=".Wallpapers$Picker"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
+
+        <activity
             android:name=".Buttons$Setup"
             android:exported="false"
             android:screenOrientation="landscape"

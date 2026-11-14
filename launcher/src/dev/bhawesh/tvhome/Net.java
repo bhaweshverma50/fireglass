@@ -42,7 +42,8 @@ final class Net {
             while (o.outWidth / (sample * 2) >= width) sample *= 2;
             o = new BitmapFactory.Options();
             o.inSampleSize = sample;
-            o.inPreferredConfig = Bitmap.Config.RGB_565;
+            // 16-bit colour bands the dark gradients of big pictures; small ones don't show it.
+            o.inPreferredConfig = width >= 600 ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
             return BitmapFactory.decodeFile(f.getPath(), o);
         } catch (Exception e) {
             return null;

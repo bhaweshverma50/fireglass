@@ -39,8 +39,10 @@ export type Title = {
 };
 
 /** /api/wallpapers: pictures on the TV, newest first; `background` is the one behind the home, if any. */
-export type Wallpaper = { name: string; bytes: number; modified: number; uploaded: boolean };
-export type WallpaperList = { items: Wallpaper[]; background: string | null; look: number };
+export type Wallpaper = { name: string; bytes: number; modified: number; uploaded: boolean; rotate?: boolean };
+/** `every` is minutes between changes (0 = never); `names` null means every picture rotates. Absent on older TVs. */
+export type WallpaperRotation = { every: number; names: string[] | null };
+export type WallpaperList = { items: Wallpaper[]; background: string | null; look: number; rotation?: WallpaperRotation };
 
 /**
  * /api/lights: the WiZ bulbs the TV found on its Wi-Fi. One of temp (white), rgb (colour) or scene

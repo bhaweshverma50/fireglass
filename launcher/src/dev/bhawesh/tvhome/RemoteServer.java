@@ -374,6 +374,21 @@ final class RemoteServer {
             Wallpapers.setBackground(svc, name);
             return Res.json(200, new JSONObject().put("ok", true));
         }
+        if (m.equals("POST") && p.equals("/api/wallpapers/rotation")) {
+            JSONObject b = r.json();
+            if (b.has("names")) {
+                Set<String> names = null;
+                JSONArray a = b.optJSONArray("names");
+                if (a != null) { names = new HashSet<>(); for (int i = 0; i < a.length(); i++) names.add(a.getString(i)); }
+                Wallpapers.setRotation(svc, names);
+            }
+            if (b.has("every")) Wallpapers.setEvery(svc, b.getInt("every"));
+            return Res.json(200, new JSONObject().put("ok", true));
+        }
+        if (m.equals("POST") && p.equals("/api/wallpapers/next")) {
+            String name = Wallpapers.next(svc);
+            return name == null ? Res.json(404, err("no_wallpaper")) : Res.json(200, new JSONObject().put("ok", true).put("name", name));
+        }
         return Res.json(404, err("not_found"));
     }
 

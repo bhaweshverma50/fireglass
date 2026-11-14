@@ -113,7 +113,7 @@ public class MainActivity extends Activity {
     private PopupWindow options;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newFixedThreadPool(2);
-    private int heroW, heroH; // baked backdrop size: half the screen
+    private int heroW; // screen width the featured panel is baked for (full: half looked soft)
 
     // Featured titles: everything trending here, or just the focused app's.
     private JSONArray recs = new JSONArray();
@@ -155,8 +155,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-        heroW = getResources().getDisplayMetrics().widthPixels / 2;
-        heroH = getResources().getDisplayMetrics().heightPixels / 2;
+        heroW = getResources().getDisplayMetrics().widthPixels;
         setContentView(buildUi());
         buildApps();
         showHero(0, 0);
@@ -815,6 +814,7 @@ public class MainActivity extends Activity {
                 dots.set(0, 0);
             });
             hero.setImage(null);
+            sky.setWallDim(0f);
             sky.setGrain(true);
             showSky(true);
             return;
@@ -838,6 +838,7 @@ public class MainActivity extends Activity {
             heroButton.setVisibility(View.VISIBLE);
             dots.set(heroItems.size(), heroIndex);
             if (b != null) { hero.setImage(b); sky.setGrain(false); }
+            sky.setWallDim(b != null || hero.hasImage() ? WALL_DIM : 0f); // a wallpaper steps back behind a featured title
             prepareNext();
         });
         if (url == null || url.equals(preparedUrl)) {
@@ -856,14 +857,18 @@ public class MainActivity extends Activity {
         });
     }
 
+    /** How far a wallpaper darkens behind a featured title (0 none, 1 black). */
+    private static final float WALL_DIM = 0.5f;
     private long heroToken;
     private String preparedUrl;
     private Bitmap prepared;
 
     /** Downloaded (or cached), cropped, faded and uploaded: ready for HeroView. Off the main thread. */
     private Bitmap bakeHero(String url) {
-        Bitmap src = Net.image(this, url, 700);
-        Bitmap b = src == null ? null : HeroView.bakeRight(src, heroW);
+        // Decoded at the panel's own width (JustWatch's 1440 one), not halved to 720 and stretched.
+        Bitmap src = Net.image(this, url, Math.round(heroW * HeroView.PANEL));
+        Bitmap b = src == null ? null : HeroView.bakeRight(src, heroW,
+                HomeSettings.get(this, HomeSettings.LOOK) == SkyView.WALLPAPER);
         if (src != null) src.recycle();
         if (b != null) b.prepareToDraw();
         return b;
@@ -949,6 +954,7 @@ public class MainActivity extends Activity {
         if (minimal) {
             handler.removeCallbacks(advance);
             hero.setImage(null);
+            sky.setWallDim(0f);
             View f = getCurrentFocus();
             App a = f != null && f.getTag() instanceof App ? (App) f.getTag() : appCards.isEmpty() ? null : (App) appCards.get(0).getTag();
             appTitle.setText(a == null ? "" : a.label);
