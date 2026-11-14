@@ -38,9 +38,13 @@ final class Legacy implements RemoteServer.Host {
     private volatile boolean running = true;
     private volatile Process logcat;
     private View pin;
+    private static Legacy self;
+    private View cover; // Look.loading over Amazon's pages until ours has drawn
+    private final Runnable uncoverTask = this::removeCover;
 
     Legacy(Context c) {
         this.c = c;
+        self = this;
         remote = new RemoteServer(c, this);
         remote.start();
         // Amazon's home is up before this listener is bound at boot, and no Home press follows it.
@@ -51,6 +55,8 @@ final class Legacy implements RemoteServer.Host {
     }
 
     void stop() {
+        if (self == this) self = null;
+        main.post(this::removeCover);
         running = false;
         Process p = logcat;
         if (p != null) p.destroy();
@@ -65,8 +71,10 @@ final class Legacy implements RemoteServer.Host {
                 Process p = logcat = Runtime.getRuntime().exec(
                         new String[]{"logcat", "-v", "raw", "-T", "1", "ActivityManager:I", "*:S"});
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                boolean first = true;
+                // -T 1 replays one old line at once; whatever arrives in the first moment is history.
+                long since = SystemClock.uptimeMillis() + 700;
                 for (String l; (l = r.readLine()) != null; ) {
+                    boolean first = SystemClock.uptimeMillis() < since;
                     if (!l.startsWith("START u0 {")) continue;
                     Matcher m = CMP.matcher(l);
                     if (!m.find()) continue;
@@ -74,7 +82,10 @@ final class Legacy implements RemoteServer.Host {
                     front = pkg;
                     boolean home = pkg.equals(HomeService.AMAZON_HOME) && l.contains("cat=[android.intent.category.HOME]");
                     if (home && !first) main.post(this::bounce);
-                    first = false;
+                    // Alexa's voice search (and Amazon's own) opens its results page: ours instead.
+                    if (!first && pkg.equals(HomeService.AMAZON_HOME) && l.contains("SearchResults")) {
+                        new Thread(this::voiceSearch, "voice").start();
+                    }
                 }
             } catch (IOException e) {
                 Log.w(TAG, "can't follow the log (READ_LOGS not granted?)", e);
@@ -92,12 +103,15 @@ final class Legacy implements RemoteServer.Host {
         if (toFront()) {
             // Ours is in front now, so starting it isn't held: that clears Search or Settings off the top.
             main.postDelayed(this::goHome, 300);
-        } else new Thread(() -> {
-            String r;
-            try { r = Keys.send(c, "resume"); } catch (Exception e) { r = "no key server"; }
-            Log.i(TAG, "home pressed, app switch hold: " + r);
-            main.post(this::goHome);
-        }, "resume").start();
+        } else {
+            showCover(); // the slow way: Amazon's home would show for seconds
+            new Thread(() -> {
+                String r;
+                try { r = Keys.send(c, "resume"); } catch (Exception e) { r = "no key server"; }
+                Log.i(TAG, "home pressed, app switch hold: " + r);
+                main.post(this::goHome);
+            }, "resume").start();
+        }
         // Amazon's launcher holds ~75 MB here; reclaim it once it's behind us.
         main.postDelayed(() -> ((android.app.ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE))
                 .killBackgroundProcesses(HomeService.AMAZON_HOME), 8000);
@@ -118,6 +132,92 @@ final class Legacy implements RemoteServer.Host {
             }
         }
         return false;
+    }
+
+    /**
+     * Fire OS 5 lets no app read Amazon's results page, but KeyServer (shell) may: it reads the
+     * words there and Search opens with them. Without KeyServer (the phone hasn't started it since
+     * boot) Amazon's page stays.
+     */
+    private void voiceSearch() {
+        if (!"ready".equals(Keys.status(c))) {
+            Log.i(TAG, "voice search: no key server, Amazon's page stays");
+            return;
+        }
+        main.post(this::showCover); // Amazon's page takes ~2 s to show the words; keep it out of sight
+        for (int i = 0; i < 3 && running; i++) { // KeyServer looks for up to 3 s each time
+            String r;
+            try { r = Keys.send(c, "searched"); } catch (Exception e) { break; }
+            if (r.startsWith("err unknown")) {
+                // An older KeyServer from before an update: let it go, the phone's next bootstrap starts this one.
+                Log.i(TAG, "voice search: key server too old");
+                try { Keys.send(c, "quit"); } catch (Exception ignored) { }
+                break;
+            }
+            if (!r.startsWith("ok ")) continue;
+            String q = Search.spokenQuery(r.substring(3));
+            if (q.isEmpty()) break;
+            Log.i(TAG, "voice search: " + q);
+            c.startActivity(new Intent(c, Search.class).putExtra(Search.QUERY, q).putExtra(Search.FROM_VOICE, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            // Amazon's launcher holds ~75 MB; it isn't needed behind our results.
+            main.postDelayed(() -> ((android.app.ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE))
+                    .killBackgroundProcesses(HomeService.AMAZON_HOME), 8000);
+            return;
+        }
+        Log.w(TAG, "voice search: nothing to read on Amazon's page");
+        main.post(this::removeCover);
+    }
+
+    /** True while the loading cover is up (MainActivity then reveals itself and lifts it). */
+    static boolean covering() {
+        Legacy l = self;
+        return l != null && l.cover != null;
+    }
+
+    static void uncover() {
+        Legacy l = self;
+        if (l != null) l.main.post(l::removeCover);
+    }
+
+    /** Android 5 grants SYSTEM_ALERT_WINDOW at install: the same loading screen HomeService covers with. */
+    private void showCover() {
+        main.removeCallbacks(uncoverTask);
+        main.postDelayed(uncoverTask, 6000); // never strand the remote behind it
+        if (cover != null) return;
+        View v = Look.loading(c, MainActivity.dockCount, MainActivity.accent);
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(-1, -1,
+                WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
+                // Not focusable: KeyServer reads the active window, which must stay Amazon's page.
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.OPAQUE);
+        lp.windowAnimations = 0;
+        try {
+            ((WindowManager) c.getSystemService(Context.WINDOW_SERVICE)).addView(v, lp);
+            cover = v;
+            Log.i(TAG, "cover up");
+        } catch (RuntimeException e) {
+            Log.w(TAG, "cover failed", e);
+        }
+    }
+
+    private void removeCover() {
+        main.removeCallbacks(uncoverTask);
+        View v = cover;
+        if (v == null) return;
+        cover = null;
+        Log.i(TAG, "cover down");
+        v.animate().alpha(0f).setDuration(180).withEndAction(() ->
+                ((WindowManager) c.getSystemService(Context.WINDOW_SERVICE)).removeViewImmediate(v));
+    }
+
+    /** After an update Android leaves Amazon's home up and no Home press follows: come back. */
+    public static final class Updated extends android.content.BroadcastReceiver {
+        @Override public void onReceive(Context c, Intent i) {
+            if (android.os.Build.VERSION.SDK_INT >= 23) return; // HomeService covers Fire OS 7 and later
+            c.startActivity(new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        }
     }
 
     @Override public String front() { return front; }

@@ -6,7 +6,7 @@ import android.content.SharedPreferences;
 import org.json.JSONObject;
 
 /**
- * "31° Haze"-style line for the top bar. City from the TV's public IP (ip-api.com, no key),
+ * "31°  Haze · Gurugram"-style line for the top bar. City from the TV's public IP (ip-api.com, no key),
  * weather from Open-Meteo (no key). Refreshed at most every 30 minutes; blank when offline.
  */
 final class Weather {
@@ -17,20 +17,25 @@ final class Weather {
     /** Blocking; call off the main thread. */
     static String line(Context c) {
         SharedPreferences p = c.getSharedPreferences("weather", Context.MODE_PRIVATE);
-        if (System.currentTimeMillis() - p.getLong("at", 0) < TTL_MS) return p.getString("line", "");
+        // Lines saved before the city was shown are refreshed once.
+        if (p.contains("city") && System.currentTimeMillis() - p.getLong("at", 0) < TTL_MS) return p.getString("line", "");
         try {
             String lat = p.getString("lat", null), lon = p.getString("lon", null);
-            if (lat == null || System.currentTimeMillis() - p.getLong("geoAt", 0) > 24 * 3600 * 1000L) {
+            if (lat == null || !p.contains("city") || System.currentTimeMillis() - p.getLong("geoAt", 0) > 24 * 3600 * 1000L) {
                 JSONObject g = new JSONObject(Net.get("http://ip-api.com/json/?fields=status,city,lat,lon"));
                 if (!"success".equals(g.optString("status"))) return p.getString("line", "");
                 lat = String.valueOf(g.getDouble("lat"));
                 lon = String.valueOf(g.getDouble("lon"));
-                p.edit().putString("lat", lat).putString("lon", lon).putLong("geoAt", System.currentTimeMillis()).apply();
+                p.edit().putString("lat", lat).putString("lon", lon).putString("city", g.optString("city"))
+                        .putLong("geoAt", System.currentTimeMillis()).apply();
             }
             JSONObject cur = new JSONObject(Net.get("https://api.open-meteo.com/v1/forecast?latitude=" + lat
                     + "&longitude=" + lon + "&current=temperature_2m,weather_code&timezone=auto"))
                     .getJSONObject("current");
-            String line = Math.round(cur.getDouble("temperature_2m")) + "°  " + describe(cur.getInt("weather_code"));
+            // Where the weather is for: the city the TV's internet connection appears to be in.
+            String city = p.getString("city", "");
+            String line = Math.round(cur.getDouble("temperature_2m")) + "°  " + describe(cur.getInt("weather_code"))
+                    + (city.isEmpty() ? "" : " · " + city);
             p.edit().putString("line", line).putLong("at", System.currentTimeMillis()).apply();
             return line;
         } catch (Exception e) {

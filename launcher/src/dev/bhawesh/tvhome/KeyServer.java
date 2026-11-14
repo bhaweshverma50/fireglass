@@ -22,12 +22,12 @@ import java.nio.charset.StandardCharsets;
  * because it boots a new runtime every time, while this stays up and injects in ~1 ms.
  *
  * Listens on 127.0.0.1:{@link #PORT}. Line protocol, first line must be "auth <secret>":
- *   key <keycode> <long 0|1>   text <utf-8 text>   stop <package>   resume   version   quit
+ *   key <keycode> <long 0|1>   text <utf-8 text>   stop <package>   resume   searched   version   quit
  * Each command is answered with "ok" or "err <reason>".
  */
 public final class KeyServer {
     static final int PORT = 8091;
-    static final String VERSION = "3";
+    static final String VERSION = "4";
     // ~20 MB while alive. Restarting needs the phone, so it stays up for a day of no use.
     private static final int IDLE_EXIT_MS = 24 * 60 * 60 * 1000;
 
@@ -35,6 +35,11 @@ public final class KeyServer {
     private static Method inject;
 
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("--searched")) { // check by hand: what `searched` reads
+            try { System.out.println("live: " + searchedLive()); } catch (Throwable e) { e.printStackTrace(System.out); }
+            System.out.println("dump: " + searchedDump());
+            System.exit(0);
+        }
         String secret = args.length > 0 ? args[0] : "";
         Class<?> im = Class.forName("android.hardware.input.InputManager");
         inputManager = im.getDeclaredMethod("getInstance").invoke(null);
@@ -87,6 +92,10 @@ public final class KeyServer {
                     Class<?> amn = Class.forName("android.app.ActivityManagerNative");
                     Object am = amn.getMethod("getDefault").invoke(null);
                     am.getClass().getMethod("resumeAppSwitches").invoke(am);
+                } else if (line.equals("searched")) {
+                    // Fire OS 5 lets no app read the screen; shell may (Legacy's voice search redirect).
+                    String t = searched();
+                    reply = t == null || t.trim().isEmpty() ? "err none" : "ok " + t.replace('\n', ' ').trim();
                 } else if (line.equals("version")) {
                     reply = "ok " + VERSION;
                 } else if (line.equals("quit")) {
@@ -100,6 +109,63 @@ public final class KeyServer {
             }
             out.write((reply + "\n").getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private static final String SEARCH_TEXT = "com.amazon.tv.launcher:id/search_text";
+    private static android.os.HandlerThread uiThread;
+
+    /** The words on Amazon's search results page (what Alexa heard), or null. */
+    private static String searched() throws Exception {
+        try {
+            return searchedLive();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return searchedDump(); // the slow way (~3 s), as `uiautomator dump` does it
+        }
+    }
+
+    /** What `uiautomator` does, in this process: a UiAutomation connection, read, let go (~0.2 s). */
+    private static String searchedLive() throws ReflectiveOperationException {
+        if (uiThread == null) {
+            uiThread = new android.os.HandlerThread("ui");
+            uiThread.start();
+        }
+        Class<?> conn = Class.forName("android.app.UiAutomationConnection");
+        android.app.UiAutomation ui = android.app.UiAutomation.class
+                .getConstructor(android.os.Looper.class, Class.forName("android.app.IUiAutomationConnection"))
+                .newInstance(uiThread.getLooper(), conn.getConstructor().newInstance());
+        android.app.UiAutomation.class.getMethod("connect").invoke(ui);
+        try {
+            // The connection comes up a moment after connect(), and the page fills in after it opens:
+            // look for up to 3 s (the client waits 5).
+            for (int i = 0; i < 30; i++) {
+                android.view.accessibility.AccessibilityNodeInfo root = ui.getRootInActiveWindow();
+                if (root != null) {
+                    for (android.view.accessibility.AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(SEARCH_TEXT)) {
+                        if (n.getText() != null && n.getText().length() > 0) return n.getText().toString();
+                    }
+                }
+                SystemClock.sleep(100);
+            }
+            return null;
+        } finally {
+            android.app.UiAutomation.class.getMethod("disconnect").invoke(ui);
+        }
+    }
+
+    private static String searchedDump() throws Exception {
+        String f = "/data/local/tmp/fireglass-ui.xml";
+        Runtime.getRuntime().exec(new String[]{"uiautomator", "dump", f}).waitFor();
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) {
+            byte[] chunk = new byte[8192];
+            for (int n; (n = in.read(chunk)) > 0; ) buf.write(chunk, 0, n);
+        }
+        String xml = new String(buf.toByteArray(), StandardCharsets.UTF_8);
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("text=\"([^\"]*)\"[^>]*resource-id=\"" + java.util.regex.Pattern.quote(SEARCH_TEXT) + "\"").matcher(xml);
+        if (!m.find()) return null;
+        return m.group(1).replace("&quot;", "\"").replace("&apos;", "'").replace("&#39;", "'")
+                .replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
     }
 
     private static void key(int code, boolean longPress) throws Exception {

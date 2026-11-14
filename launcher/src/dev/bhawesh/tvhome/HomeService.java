@@ -223,12 +223,13 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
     }
 
     static boolean maskShowing() {
-        return self != null && self.covering;
+        return (self != null && self.covering) || Legacy.covering();
     }
 
     /** Called by MainActivity once it is drawn again. */
     static void hideMask() {
         if (self != null) self.removeMask();
+        Legacy.uncover();
     }
 
     private static final long COVER_DRAWN_MS = 300;

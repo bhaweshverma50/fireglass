@@ -98,6 +98,13 @@
             </intent-filter>
         </service>
 
+        <!-- Fire OS 5: reopen after an update (Legacy). -->
+        <receiver android:name=".Legacy$Updated" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".HomeService"
             android:exported="true"
