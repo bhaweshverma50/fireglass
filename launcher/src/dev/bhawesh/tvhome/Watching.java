@@ -50,7 +50,13 @@ public class Watching extends NotificationListenerService {
     }
 
     private void connect() {
-        if (android.os.Build.VERSION.SDK_INT < 23 && legacy == null) legacy = new Legacy(this);
+        if (android.os.Build.VERSION.SDK_INT < 23 && legacy == null) {
+            legacy = new Legacy(this);
+            // On a 1 GB stick the system unloaded Fireglass behind Netflix, and a Home press then
+            // found nothing listening. Foreground keeps it (Fire OS 5 shows no notification shade).
+            startForeground(1, new android.app.Notification.Builder(this).setSmallIcon(R.drawable.fg_icon)
+                    .setContentTitle("Fireglass").setPriority(android.app.Notification.PRIORITY_MIN).build());
+        }
         msm = ((MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE));
         ComponentName me = new ComponentName(this, Watching.class);
         // Before Android 7 a rebind doesn't call onListenerDisconnected: drop any old registration.

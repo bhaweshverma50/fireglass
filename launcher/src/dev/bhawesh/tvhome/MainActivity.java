@@ -127,6 +127,8 @@ public class MainActivity extends Activity {
     private String focusPkg;   // last focused app package or title id
     private int travel;        // last D-pad press: -1 left, 1 right, 0 up or down
     private boolean firstShow = true, resumed, fast;
+    /** When the home last came to the front (Legacy checks a Home press really brought it back). */
+    static volatile long shownAt;
     private boolean minimal, calm;      // HomeSettings: no featured block; no streaks or springs
     private int appliedSettings = -1;
     private TextView appTitle;          // minimal mode: the focused app's name over the background
@@ -178,6 +180,7 @@ public class MainActivity extends Activity {
         registerReceiver(tick, tf);
         watchNetwork();
         resumed = true;
+        shownAt = android.os.SystemClock.uptimeMillis();
         Lights.atHome(this, true);
         bar.update(this);
         updateWifi();
@@ -1334,8 +1337,29 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onStop() {
+        // Fire OS 5: what Legacy covers Amazon's home with on the next Home press, so the home
+        // seems back at once. Taken here, not in onPause: the app being opened isn't kept waiting.
+        if (android.os.Build.VERSION.SDK_INT < 23) lastFrame = capture();
         super.onStop();
         unloadRows();
+    }
+
+    /** The screen as it was when the home was left, half size. */
+    static volatile Bitmap lastFrame;
+
+    private Bitmap capture() {
+        View d = getWindow().getDecorView();
+        if (d.getWidth() == 0) return lastFrame;
+        Bitmap b = lastFrame != null && lastFrame.getWidth() == d.getWidth() / 2 ? lastFrame
+                : Bitmap.createBitmap(d.getWidth() / 2, d.getHeight() / 2, Bitmap.Config.RGB_565);
+        android.graphics.Canvas cv = new android.graphics.Canvas(b);
+        cv.scale(0.5f, 0.5f);
+        try {
+            d.draw(cv);
+        } catch (RuntimeException e) {
+            return null; // a view that can't draw in software: the loading screen will do
+        }
+        return b;
     }
 
     /** D-pad targets between the nav, the hero's Open button, the apps row and the rows below. */
@@ -1499,6 +1523,8 @@ public class MainActivity extends Activity {
         bg.setStroke(dp(1), 0x26FFFFFF);
         list.setBackground(bg);
         PopupWindow pw = new PopupWindow(list, dp(SHEET_W), -2, true);
+        // Before Android 6 a popup without a background never sees Back (Fire OS 5).
+        pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
         for (TextView r : rows) {
             r.setOnClickListener(v -> { pw.dismiss(); ((Runnable) v.getTag()).run(); });
             list.addView(r, new LinearLayout.LayoutParams(-1, dp(46)));

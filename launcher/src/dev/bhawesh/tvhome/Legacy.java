@@ -2,6 +2,7 @@ package dev.bhawesh.tvhome;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.os.Handler;
 import android.os.Looper;
@@ -125,21 +126,41 @@ final class Legacy implements RemoteServer.Host {
      * Android 5 doesn't release a launch that is already waiting, so the lift comes before the start.
      */
     private void bounce() {
+        showCover(false); // the home as it was left: it looks back at once
         if (toFront()) {
-            // Ours is in front now, so starting it isn't held: that clears Search or Settings off the top.
-            main.postDelayed(this::goHome, 300);
+            // Ours in front: starting it now isn't held, and clears Search or Settings off the top.
+            // But a task whose home was unloaded for memory comes forward empty, and rebuilding it
+            // is held like any launch: then take the slow way after all.
+            awaitHome(SystemClock.uptimeMillis());
         } else {
-            showCover(false); // the slow way: Amazon's home would show for seconds
-            new Thread(() -> {
-                String r;
-                try { r = Keys.send(c, "resume"); } catch (Exception e) { r = "no key server"; }
-                Log.i(TAG, "home pressed, app switch hold: " + r);
-                main.post(this::goHome);
-            }, "resume").start();
+            slowHome();
         }
         // Amazon's launcher holds ~75 MB here; reclaim it once it's behind us.
         main.postDelayed(() -> ((android.app.ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE))
                 .killBackgroundProcesses(HomeService.AMAZON_HOME), 8000);
+    }
+
+    /**
+     * After our task came forward: the app being left (Netflix, YouTube) can take a second to step
+     * aside. Once the home shows, start it (that's no longer held, and clears Search or Settings
+     * off the top). Loading screen over Amazon's home from 0.5 s; from 1.5 s, the slow way.
+     */
+    private void awaitHome(long since) {
+        long waited = SystemClock.uptimeMillis() - since;
+        if (MainActivity.shownAt >= since) { goHome(); return; }
+        if (waited >= 1500) { slowHome(); return; }
+        main.postDelayed(() -> awaitHome(since), 100);
+    }
+
+    /** Cover Amazon's home and have KeyServer lift the 5 s hold (when the phone has started it). */
+    private void slowHome() {
+        showCover(false);
+        new Thread(() -> {
+            String r;
+            try { r = Keys.send(c, "resume"); } catch (Exception e) { r = "no key server"; }
+            Log.i(TAG, "home pressed, app switch hold: " + r);
+            main.post(this::goHome);
+        }, "resume").start();
     }
 
     /**
@@ -214,8 +235,15 @@ final class Legacy implements RemoteServer.Host {
         // Never strand the remote behind it. A voice search on a cold Amazon page can take ~6 s to read.
         main.postDelayed(uncoverTask, search ? 10_000 : 6000);
         if (cover != null) return;
-        View v = search ? Look.searchLoading(c, MainActivity.accent, android.os.Build.VERSION.SDK_INT < 23)
-                : Look.loading(c, MainActivity.dockCount, MainActivity.accent);
+        Bitmap last = MainActivity.lastFrame;
+        View v;
+        if (search) v = Look.searchLoading(c, MainActivity.accent, true);
+        else if (last != null) {
+            android.widget.ImageView iv = new android.widget.ImageView(c);
+            iv.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+            iv.setImageBitmap(last);
+            v = iv;
+        } else v = Look.loading(c, MainActivity.dockCount, MainActivity.accent);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(-1, -1,
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
                 // Not focusable: KeyServer reads the active window, which must stay Amazon's page.
