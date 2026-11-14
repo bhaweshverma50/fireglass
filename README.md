@@ -6,8 +6,9 @@ nothing sent to anyone's cloud.
 
 ![Fireglass home screen: featured title on the right, apps along the bottom](docs/screenshots/tv-home-featured.jpg)
 
-Built on a Fire TV Stick (3rd gen, 1 GB RAM, Fire OS 7.7), and reported working on Fire OS 8 (a Fire TV
-Stick 4K Max). On the 3rd gen stick:
+Built on a Fire TV Stick (3rd gen, 1 GB RAM, Fire OS 7.7), reported working on Fire OS 8 (a Fire TV
+Stick 4K Max), and running on the Fire TV Stick 2nd gen (Fire OS 5, Android 5.1) from 1.4. On the
+3rd gen stick:
 
 | | Amazon's home | Fireglass |
 |---|---|---|
@@ -25,28 +26,36 @@ Stick 4K Max). On the 3rd gen stick:
   narrows to that app's titles, like Apple TV's top shelf. "Open in Netflix" goes straight to
   the title inside the app.
 - **One row of apps**, then **Recently watched** (tracked across apps, with the app and
-  episode: Netflix and JioHotstar included) and a ranked **Trending on <app>** row for each app,
+  episode: Netflix, JioHotstar and YouTube included; picking one opens that title or video, not
+  just its app) and a ranked **Trending on <app>** row for each app,
   Top 10 style: posters with their rank as a big serif numeral that lights up in the app's
   colour.
-- **Search**, in the top bar: type with the Fire TV keyboard, or just ask Alexa. Results from the
-  apps on this TV come first, then YouTube's own results. Alexa voice searches land here instead
-  of on Amazon's results page.
+- **Search**, in the top bar: type with the Fire TV keyboard (on Fire OS 5, Fireglass's own, since
+  Amazon's covers the whole screen there), or just ask Alexa. Results from the apps on this TV come
+  first, then YouTube's own results. Alexa voice searches land here instead of on Amazon's results
+  page.
 - **Lights.** Your WiZ smart bulbs from the TV and the phone: power, brightness, warmth, colours
   and WiZ's scenes, plus two automatic modes: dim the room while something plays, and let the
   light take the colour of what you're on in the home.
 - **Offline, calmly.** Without internet the home keeps working on what it saved, says so, offers
   Wi-Fi settings, and refreshes by itself once the TV is back online.
 - **A live sky** behind everything that follows the time of day, a fixed colour wash, or one of
-  your own pictures.
+  your own pictures, changing every 15 minutes, hour or day if you like. **Wallpapers** on the TV
+  picks which pictures take turns (or the phone app does). Changes fade, and behind a featured
+  title the picture steps back so the two don't show through each other.
 - **Apps in use**: a phone-style switcher. Switch to an app, push one away to close it, or
   close them all.
 - **Customise home**: Featured or Minimal style, background, a top bar of labels or just icons
   (the name shows under the one you're on), which rows show, weather, calm motion, and the
-  screensaver, each previewed live as you change it.
+  screensaver, each previewed live as you change it. Also a name for the greeting, free memory
+  and storage under the date, and (Fire OS 7 and later) **remote buttons**: give a button a press
+  and a hold job (an app, Search, quick settings over any app, mute).
+- **Hide apps** you don't use from the home (≡ on an app), and bring them back from Settings.
 - **Screensavers**: a drifting clock, trending posters, your photos, the sky, or a different
   one each time.
 - **Settings that work.** Fire OS hides most settings behind Amazon's home; Fireglass opens the
-  ones it can directly and the rest through Amazon's Settings tab, then comes back.
+  ones it can directly and the rest through Amazon's Settings tab (on Fire OS 5, its Settings
+  grid), then comes back.
 
 | | |
 |---|---|
@@ -65,8 +74,8 @@ Stick 4K Max). On the 3rd gen stick:
   resumes something.
 - **Apps** and **Discover**: open any app, browse trending titles, tap to play on the TV.
 - **Lights**: the same controls as the TV's, with sliders, from the Remote tab or Settings.
-- **Wallpapers**: send pictures from your phone to the TV for the Photos screensaver, and pick
-  one as the home background. The TV crops and resizes each to 1920x1080, and shades it softly
+- **Wallpapers**: send pictures from your phone to the TV for the Photos screensaver, pick one as
+  the home background, or choose which ones take turns and how often. The TV crops and resizes each to 1920x1080, and shades it softly
   where the clock and names sit so they stay readable.
 
 | | | | | |
@@ -111,6 +120,13 @@ A few Fire OS walls and how Fireglass gets round them:
   mirzapur"); the accessibility service covers the page, reads that, and opens Fireglass Search
   with the rest. Fire TV's YouTube app takes no search links, so YouTube results come from
   youtube.com's results page and open as videos.
+- **Fire OS 5 lets no app be an accessibility service** (Amazon refuses them, even over ADB). There
+  `Legacy` follows ActivityManager's log (READ_LOGS, granted at install) for Home and for Amazon's
+  search results. Home brings Fireglass's own task forward (`AppTask.moveToFront`, which the 5 s
+  hold doesn't cover; idea from [cleanyourtv](https://github.com/Gathin23/cleanyourtv)), covered
+  by a snapshot of the home, and Fireglass runs in the foreground so Fire OS doesn't force-stop it
+  behind Netflix. Alexa's search words are read off Amazon's page by KeyServer, which as the shell
+  user may use Android's UI automation; a search-shaped loading screen covers the page meanwhile.
 - **The GPU is tiny.** Every full-screen blended layer costs 5–8 ms a frame on this Mali, so the
   featured picture is baked once into a hardware bitmap and nothing redraws the whole screen while
   you move.
@@ -125,9 +141,9 @@ Prebuilt files are on the [latest release](https://github.com/bhaweshverma50/fir
 
 | File | For | Install |
 |---|---|---|
-| [Fireglass-Remote-1.3.2.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.2/Fireglass-Remote-1.3.2.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
-| [Fireglass-Remote-1.3.2-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.2/Fireglass-Remote-1.3.2-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
-| [Fireglass-TV-launcher-1.3.2.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.3.2/Fireglass-TV-launcher-1.3.2.apk) | Fire TV (Fire OS 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
+| [Fireglass-Remote-1.4.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.4.0/Fireglass-Remote-1.4.0.apk) | Android phone | Open it on the phone and allow installs from unknown sources |
+| [Fireglass-Remote-1.4.0-unsigned.ipa](https://github.com/bhaweshverma50/fireglass/releases/download/v1.4.0/Fireglass-Remote-1.4.0-unsigned.ipa) | iPhone | Sideload with AltStore or Sideloadly, which sign it with your Apple ID |
+| [Fireglass-TV-launcher-1.4.0.apk](https://github.com/bhaweshverma50/fireglass/releases/download/v1.4.0/Fireglass-TV-launcher-1.4.0.apk) | Fire TV (Fire OS 5, 7 or 8) | `adb install -r` it, then do the grants and Home takeover at the end of [build-and-install.sh](launcher/build-and-install.sh). The setup below does all of this for you |
 
 The APKs are signed with a local debug key. To install over a copy signed with a different key, uninstall it first.
 
@@ -155,11 +171,13 @@ You need a Mac (Linux works with small changes), a Fire TV Stick on the same Wi-
    first and keep what you use:
 
    ```bash
-   while read -r p; do case "$p" in ''|\#*) ;; *) adb shell pm disable-user --user 0 "${p%% *}";; esac; done \
-     < examples/fire-tv-stick-3rd-gen/debloat.txt
+   TV_HOST=<tv-ip> tools/disable.sh examples/fire-tv-stick-3rd-gen/debloat.txt
    ```
 
-   Undo with `pm enable` on the same list.
+   Fire OS says "Success" even for packages it refuses, so the script reads the result back and
+   names any that stayed on. Run it again after a Fire OS or Appstore update, which can turn some
+   back on. Undo with `tools/restore.sh` on the same list. Fire OS 5 refuses all of it; there,
+   Fireglass hides Amazon's apps from the home instead.
 4. **Phone app**: see [phone/README.md](phone/README.md). Open it on the same Wi-Fi, pick your TV,
    type the PIN the TV shows, and allow the phone on the TV once. Mistype it three times and the
    app asks the TV for a new one.
@@ -173,7 +191,7 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 
 | Path | What it is |
 |---|---|
-| [launcher/](launcher/) | The TV app. Plain Android Java, no Gradle, about 175 KB |
+| [launcher/](launcher/) | The TV app. Plain Android Java, no Gradle, about 420 KB |
 | [phone/](phone/) | The phone app. Expo / React Native, with `llama.rn` for the on-device model and a mock TV for development |
 | [docs/remote-api.md](docs/remote-api.md) | The LAN API between them |
 | [brand/](brand/) | The icon as SVG masters, and `export.py`, which renders every app icon, banner and social image from them |
@@ -184,7 +202,7 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 
 - Amazon's home stays installed and comes back into memory now and then; Fire OS protects it.
 - After Home, a loading screen shows for about 1 s (0.7–1.2 s measured) before Fireglass is back.
-  Amazon's home doesn't show.
+  Amazon's home doesn't show. On Fire OS 5 it takes 1–2 s from a heavy app like Netflix.
 - `min_futurity=0` is global: any app's alarm set for the next few seconds fires on time instead
   of being pushed ~5 s out. `tools/restore.sh` removes it.
 - Watch history only records what apps report or put on Amazon's home. An app that does neither
@@ -195,10 +213,16 @@ To go back to stock: `adb uninstall dev.bhawesh.tvhome`.
 - Lights through Lumen need the machine running Lumen to be up; bulbs the TV can reach itself
   don't. Only WiZ bulbs are supported.
 - After an Alexa voice search, Amazon's results page shows for a moment before the cover goes up:
-  Fireglass only hears about it once it's drawn.
+  Fireglass only hears about it once it's drawn. On Fire OS 5 voice search needs KeyServer, so
+  it works once the phone app has connected since the TV last started; until then Amazon's page
+  stays. Reading the words there takes 2–6 s, behind a loading screen.
+- On Fire OS 5, Netflix's title links open its home, so Fireglass sends its play link: picking a
+  Netflix title there starts it playing.
+- Remote buttons and quick settings depend on Fire OS passing a button to accessibility services;
+  some app buttons may never reach them.
 - Someone on your Wi-Fi can hold off new pairings for up to an hour by sending wrong PINs (they
   can't pair). Phones already paired keep working, and restarting the TV clears it.
-- Tested on a Fire TV Stick 3rd gen in India; the Fire OS 8 fixes came from a 4K Max. Other regions
+- Tested on a Fire TV Stick 3rd gen and 2nd gen in India; the Fire OS 8 fixes came from a 4K Max. Other regions
   need the country code in `Catalog.java`.
 
 ## Credits
@@ -207,6 +231,9 @@ Fireglass started as a fork of [tv-home](https://github.com/mihirgupta0900/tv-ho
 (MIT), an Apple TV-style launcher and debloat kit for Google TV. Fonts: Instrument Serif and
 Figtree, both SIL Open Font License (licences in `launcher/assets/fonts/`). Icons in the phone
 app: Lucide. Fire OS 8 support and the pairing limits: [@beenhere](https://github.com/beenhere).
+Several 1.4 ideas (bringing the home's task forward, opening Amazon's Settings grid, remote
+buttons, the Home-loop guard, a quicker boot, checked debloating) come from
+[cleanyourtv](https://github.com/Gathin23/cleanyourtv).
 
 The wallpaper in the screenshots is *Cirrus front over Austnesfjorden, Lofoten* by Ximonic (Simo
 Räsänen), CC BY-SA 3.0, from Wikimedia Commons.
