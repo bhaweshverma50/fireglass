@@ -88,6 +88,7 @@ public class Search extends Activity {
         col.setOrientation(LinearLayout.VERTICAL);
         // Full width, margins inside, so a lifted poster at either edge isn't clipped by the scroller.
         col.setPadding(0, dp(Look.PAD_TOP), 0, 0);
+        col.setClipChildren(false); // a focused key grows past its row
         LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, dp(56));
         fp.setMargins(dp(Look.PAD_X), 0, dp(Look.PAD_X), 0);
         col.addView(buildField(), fp);

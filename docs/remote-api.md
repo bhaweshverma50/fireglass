@@ -78,6 +78,7 @@ A **title**:
 | GET | `/api/search?q=stranger%20things` | | `[title, …]` best match first, max 10 |
 | GET | `/api/recs` | | `[title, …]` trending on the user's apps (what the TV home shows) |
 | GET | `/api/recent` | | `[title or {"pkg","label"} …]` recently opened from TV home or phone |
+| DELETE | `/api/recent` | `{"id":"ts296797"}` | `{"ok":true}`; takes that title off the history |
 | POST | `/api/play` | `{"title":"Stranger Things","pkg":null,"kind":null,"id":null}` | `{"ok":true,"opened":{"title":"Stranger Things","pkg":"com.netflix.ninja","how":"deeplink"\|"search"\|"app"}}` or `{"ok":false,"error":"not_found"\|"not_on_your_apps","candidates":[title…]}` |
 
 `/api/play` resolves the title (by `id` if given), picks the offer (`pkg` if given, else the first

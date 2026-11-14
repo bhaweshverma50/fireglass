@@ -69,6 +69,10 @@ final class Catalog {
             case "/api/recs":
                 return RemoteServer.json(200, recs(c));
             case "/api/recent":
+                if ("DELETE".equals(method)) {
+                    forget(c, body.optString("id"));
+                    return RemoteServer.json(200, new JSONObject().put("ok", true));
+                }
                 return RemoteServer.json(200, recent(c));
             case "/api/play":
                 return RemoteServer.json(200, play(c, body.optString("id", null), body.optString("title", null),
@@ -179,6 +183,7 @@ final class Catalog {
 
     /** Resolve a title (by id, else by name), open it in the given app or the first one that has it. */
     static final String YOUTUBE = "com.amazon.firetv.youtube";
+    static final String NETFLIX = "com.netflix.ninja";
     static final String HOTSTAR = "in.startv.hotstar";
 
     static JSONObject play(Context c, String id, String title, String pkg) throws Exception {
@@ -307,7 +312,9 @@ final class Catalog {
                 if (i == null) return false;
                 c.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 return true;
-            } else if (APP_LINKS.contains(pkg) && offer.has("deeplink")) {
+            } else if ((APP_LINKS.contains(pkg) || (NETFLIX.equals(pkg) && android.os.Build.VERSION.SDK_INT < 23))
+                    && offer.has("deeplink")) {
+                // Fire OS 5's Netflix opens its home for a title page link but plays a watch link.
                 i = Intent.parseUri(offer.getString("deeplink"), Intent.URI_INTENT_SCHEME);
                 i.setFlags(0); // its own launch flags don't help here
             } else {
@@ -455,9 +462,25 @@ final class Catalog {
     private static void youTubeArt(JSONObject entry, String query) {
         try {
             String[] y = youTubeHit(query);
-            if (y != null) entry.put("poster", y[1]).put("thumb", y[1]).put("backdrop", y[1]).put("videoId", y[0]);
+            if (y != null) {
+                entry.put("poster", y[1]).put("thumb", y[1]).put("backdrop", y[1]).put("videoId", y[0]);
+                linkVideo(entry);
+            }
         } catch (Exception e) {
             Log.w(TAG, "youtube art " + query, e);
+        }
+    }
+
+    /** A YouTube history entry plays its video, not just the app: its offer gets the watch link. */
+    private static void linkVideo(JSONObject entry) throws JSONException {
+        JSONArray offers = entry.optJSONArray("offers");
+        String id = entry.optString("videoId");
+        if (offers == null || id.isEmpty()) return;
+        for (int i = 0; i < offers.length(); i++) {
+            JSONObject o = offers.getJSONObject(i);
+            if (YOUTUBE.equals(o.optString("pkg")) && o.optString("url").isEmpty()) {
+                o.put("url", "https://www.youtube.com/watch?v=" + id);
+            }
         }
     }
 
@@ -480,6 +503,7 @@ final class Catalog {
         }, "youtube-art").start();
         for (int i = 0; i < r.length(); i++) {
             JSONObject t = r.getJSONObject(i);
+            linkVideo(t); // entries saved before videos got their link
             JSONObject known = byId.get(t.optString("id"));
             // Entries saved before art was kept: borrow it from the catalogue when the title is there.
             if (!t.has("thumb") && known != null && known.has("thumb")) {
