@@ -280,7 +280,84 @@ final class Look {
             row.addView(ghost, tileLp(c, APP_W, i == 0));
         }
         root.addView(row, appsLp(c));
+        sweep(c, root, glasses);
+        return root;
+    }
 
+    /**
+     * Search's layout as glass placeholders, over the same sky and dim: what a voice search on
+     * Fire OS 5 shows while the words are read off Amazon's page (Legacy).
+     */
+    static View searchLoading(Context c, int accent, boolean keys) {
+        FrameLayout root = new FrameLayout(c);
+        root.setBackgroundColor(Color.BLACK);
+        SkyView sky = new SkyView(c);
+        sky.setLook(HomeSettings.get(c, HomeSettings.LOOK));
+        sky.setAccent(accent, 0.4f, false);
+        root.addView(sky, new FrameLayout.LayoutParams(-1, -1));
+        View dim = new View(c);
+        dim.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x99000000, 0xCC000000, 0xE6000000}));
+        root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+
+        List<Glass> glasses = new ArrayList<>();
+        LinearLayout col = new LinearLayout(c);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(c, PAD_X), dp(c, PAD_TOP), dp(c, PAD_X), 0);
+        LinearLayout pill = new LinearLayout(c);
+        pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setPadding(dp(c, 20), 0, dp(c, 20), 0);
+        pill.setBackground(new Glass(dp(c, 28), 0.95f));
+        android.widget.ImageView icon = new android.widget.ImageView(c);
+        Icon glassIcon = new Icon(Icon.SEARCH, dp(c, 20));
+        glassIcon.setColor(0xCCFFFFFF);
+        icon.setImageDrawable(glassIcon);
+        pill.addView(icon, new LinearLayout.LayoutParams(dp(c, 20), dp(c, 20)));
+        TextView said = text(c, serif(c), 24, 0x66FFFFFF);
+        said.setText("Searching…");
+        said.setPadding(dp(c, 14), 0, 0, 0);
+        pill.addView(said);
+        col.addView(pill, new LinearLayout.LayoutParams(-1, dp(c, 56)));
+        if (keys) for (int r = 0; r < 3; r++) {
+            LinearLayout row = new LinearLayout(c);
+            for (int k = 0; k < 13; k++) {
+                View key = new View(c);
+                Glass g = new Glass(dp(c, 10), 0.5f);
+                glasses.add(g);
+                key.setBackground(g);
+                LinearLayout.LayoutParams kp = new LinearLayout.LayoutParams(dp(c, r == 2 && k >= 10 ? 76 : 40), dp(c, 36));
+                kp.setMargins(0, 0, dp(c, 6), 0);
+                row.addView(key, kp);
+            }
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-2, -2);
+            rp.setMargins(0, dp(c, r == 0 ? 16 : 6), 0, 0);
+            col.addView(row, rp);
+        }
+        View heading = new View(c);
+        Glass hg = new Glass(dp(c, 7), 0.6f);
+        glasses.add(hg);
+        heading.setBackground(hg);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(dp(c, 110), dp(c, 14));
+        hp.setMargins(dp(c, 4), dp(c, 22), 0, dp(c, 14));
+        col.addView(heading, hp);
+        LinearLayout posters = new LinearLayout(c);
+        for (int i = 0; i < 6; i++) {
+            View ghost = new View(c);
+            Glass g = new Glass(dp(c, TILE_RADIUS), 0.8f);
+            glasses.add(g);
+            ghost.setBackground(g);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(c, 112), dp(c, 168));
+            lp.setMargins(i == 0 ? 0 : dp(c, 22), 0, 0, 0);
+            posters.addView(ghost, lp);
+        }
+        col.addView(posters);
+        root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        sweep(c, root, glasses);
+        return root;
+    }
+
+    /** Light running across the placeholders while the view is on screen. */
+    private static void sweep(Context c, View root, List<Glass> glasses) {
         ValueAnimator run = ValueAnimator.ofFloat(0f, 1f);
         run.setDuration(ms(c, 1500));
         run.setRepeatCount(ValueAnimator.INFINITE);
@@ -290,7 +367,6 @@ final class Look {
             @Override public void onViewAttachedToWindow(View v) { run.start(); }
             @Override public void onViewDetachedFromWindow(View v) { run.cancel(); }
         });
-        return root;
     }
 
     // ---------------------------------------------------------------- drawables

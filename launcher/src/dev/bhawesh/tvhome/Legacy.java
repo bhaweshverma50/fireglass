@@ -41,6 +41,24 @@ final class Legacy implements RemoteServer.Host {
     private static Legacy self;
     private View cover; // Look.loading over Amazon's pages until ours has drawn
     private final Runnable uncoverTask = this::removeCover;
+    // Heartbeat: a line of our own in the log being followed. If the reader stops seeing it
+    // (it has wedged, leaving Home with Amazon), the reader is restarted.
+    private static final String PING = "fireglass ping ";
+    private volatile int pingSeen;
+    private int pingSent;
+    private final Runnable checkPing = () -> {
+        if (pingSeen == pingSent) return;
+        Log.w(TAG, "log follower stopped hearing; restarting it");
+        Process p = logcat;
+        if (p != null) p.destroy();
+    };
+    private final Runnable sendPing = new Runnable() {
+        @Override public void run() {
+            Log.i("ActivityManager", PING + (++pingSent));
+            main.postDelayed(checkPing, 3000);
+            main.postDelayed(this, 15_000);
+        }
+    };
 
     Legacy(Context c) {
         this.c = c;
@@ -52,10 +70,13 @@ final class Legacy implements RemoteServer.Host {
         Thread t = new Thread(this::follow, "home-watch");
         t.setDaemon(true);
         t.start();
+        main.postDelayed(sendPing, 15_000);
     }
 
     void stop() {
         if (self == this) self = null;
+        main.removeCallbacks(sendPing);
+        main.removeCallbacks(checkPing);
         main.post(this::removeCover);
         running = false;
         Process p = logcat;
@@ -74,6 +95,10 @@ final class Legacy implements RemoteServer.Host {
                 // -T 1 replays one old line at once; whatever arrives in the first moment is history.
                 long since = SystemClock.uptimeMillis() + 700;
                 for (String l; (l = r.readLine()) != null; ) {
+                    if (l.startsWith(PING)) {
+                        try { pingSeen = Integer.parseInt(l.substring(PING.length()).trim()); } catch (NumberFormatException ignored) { }
+                        continue;
+                    }
                     boolean first = SystemClock.uptimeMillis() < since;
                     if (!l.startsWith("START u0 {")) continue;
                     Matcher m = CMP.matcher(l);
@@ -104,7 +129,7 @@ final class Legacy implements RemoteServer.Host {
             // Ours is in front now, so starting it isn't held: that clears Search or Settings off the top.
             main.postDelayed(this::goHome, 300);
         } else {
-            showCover(); // the slow way: Amazon's home would show for seconds
+            showCover(false); // the slow way: Amazon's home would show for seconds
             new Thread(() -> {
                 String r;
                 try { r = Keys.send(c, "resume"); } catch (Exception e) { r = "no key server"; }
@@ -119,11 +144,14 @@ final class Legacy implements RemoteServer.Host {
 
     /**
      * The hold doesn't cover an app bringing its own task forward (cleanyourtv's trick): ~0.5 s,
-     * no KeyServer needed. False when Fireglass has no task to bring.
+     * no KeyServer needed. False when Fireglass has no live task to bring.
      */
     private boolean toFront() {
         for (android.app.ActivityManager.AppTask t : ((android.app.ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE)).getAppTasks()) {
             try {
+                // A task whose activities were dropped for memory (Netflix on a 1 GB stick) has id -1:
+                // bringing it forward relaunches it, and that launch is held like any other.
+                if (t.getTaskInfo().id == -1) continue;
                 t.moveToFront();
                 Log.i(TAG, "home pressed, our task to front");
                 return true;
@@ -144,7 +172,7 @@ final class Legacy implements RemoteServer.Host {
             Log.i(TAG, "voice search: no key server, Amazon's page stays");
             return;
         }
-        main.post(this::showCover); // Amazon's page takes ~2 s to show the words; keep it out of sight
+        main.post(() -> showCover(true)); // Amazon's page takes ~2 s to show the words; keep it out of sight
         for (int i = 0; i < 3 && running; i++) { // KeyServer looks for up to 3 s each time
             String r;
             try { r = Keys.send(c, "searched"); } catch (Exception e) { break; }
@@ -180,12 +208,14 @@ final class Legacy implements RemoteServer.Host {
         if (l != null) l.main.post(l::removeCover);
     }
 
-    /** Android 5 grants SYSTEM_ALERT_WINDOW at install: the same loading screen HomeService covers with. */
-    private void showCover() {
+    /** Android 5 grants SYSTEM_ALERT_WINDOW at install: HomeService's loading screen, or Search's for a voice search. */
+    private void showCover(boolean search) {
         main.removeCallbacks(uncoverTask);
-        main.postDelayed(uncoverTask, 6000); // never strand the remote behind it
+        // Never strand the remote behind it. A voice search on a cold Amazon page can take ~6 s to read.
+        main.postDelayed(uncoverTask, search ? 10_000 : 6000);
         if (cover != null) return;
-        View v = Look.loading(c, MainActivity.dockCount, MainActivity.accent);
+        View v = search ? Look.searchLoading(c, MainActivity.accent, android.os.Build.VERSION.SDK_INT < 23)
+                : Look.loading(c, MainActivity.dockCount, MainActivity.accent);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(-1, -1,
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
                 // Not focusable: KeyServer reads the active window, which must stay Amazon's page.
