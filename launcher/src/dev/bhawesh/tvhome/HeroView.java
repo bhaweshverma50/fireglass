@@ -110,10 +110,7 @@ final class HeroView extends View {
         Paint p = new Paint(Paint.DITHER_FLAG);
         p.setShader(new android.graphics.RadialGradient(w, h, w * 0.45f, 0x8C000000, 0x00000000, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, h, p);
-        Bitmap fixed = out.copy(Bitmap.Config.HARDWARE, false);
-        if (fixed == null) return out;
-        out.recycle();
-        return fixed;
+        return Look.gpu(out);
     }
 
     /**
@@ -144,10 +141,7 @@ final class HeroView extends View {
         c.drawRect(x, 0, w, rh, p);
         p.setShader(new LinearGradient(0, rh * 0.5f, 0, rh, ease(true), easeStops(), Shader.TileMode.CLAMP));
         c.drawRect(x, 0, w, rh, p);
-        Bitmap fixed = out.copy(Bitmap.Config.HARDWARE, false);
-        if (fixed == null) return out;
-        out.recycle();
-        return fixed;
+        return Look.gpu(out);
     }
 
     private static final int EASE_STEPS = 9;
@@ -189,9 +183,6 @@ final class HeroView extends View {
         p.setShader(new LinearGradient(0, 0, 0, h * 0.3f, 0xCC05060A, 0x00000000, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, h, p);
         // Hardware bitmap: uploaded to the GPU once, here, never again while drawing.
-        Bitmap fixed = out.copy(Bitmap.Config.HARDWARE, false);
-        if (fixed == null) return out;
-        out.recycle();
-        return fixed;
+        return Look.gpu(out);
     }
 }

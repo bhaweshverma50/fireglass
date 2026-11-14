@@ -5,6 +5,10 @@
     android:versionName="1.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Fire OS 5 only (Legacy): follow ActivityManager's log for the Home button, granted over ADB
+         at install; and the pairing code over other apps (granted at install before Android 6). -->
+    <uses-permission android:name="android.permission.READ_LOGS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Recency for "Apps in use"; granted with appops at install. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <!-- To make our screensaver the system's (Screensaver.apply); granted over ADB at install. -->

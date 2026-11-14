@@ -19,6 +19,10 @@
         <item>com.amazon.audiohome</item>
         <item>com.amazon.firetv.troubleshooting</item>
         <item>com.amazon.spiderpork</item>
+        <!-- Fire OS 5 can't disable these (shell may not change Amazon packages there), so hide them. -->
+        <item>com.amazon.minitv.android.app</item>
+        <item>com.amazon.bueller.music</item>
+        <item>com.amazon.shoptv.firetv.client</item>
     </string-array>
 
     <!-- Tiles per row in the grid. -->

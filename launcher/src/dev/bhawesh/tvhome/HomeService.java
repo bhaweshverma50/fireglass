@@ -31,7 +31,7 @@ import android.content.Context;
  * alarm_manager_constants min_futurity=0 (build-and-install.sh sets it); without it, it waits ~5 s.
  * A loading screen (Look.loading) covers Amazon's home until ours has drawn.
  */
-public class HomeService extends AccessibilityService {
+public class HomeService extends AccessibilityService implements RemoteServer.Host {
     static final String TAG = "TvHome";
     static final String AMAZON_HOME = "com.amazon.tv.launcher";
     static final String FIRE_SETTINGS = "com.amazon.tv.settings.v2";
@@ -65,7 +65,7 @@ public class HomeService extends AccessibilityService {
     protected void onServiceConnected() {
         self = this;
         addCover();
-        remote = new RemoteServer(this);
+        remote = new RemoteServer(this, this);
         remote.start();
     }
 
@@ -73,7 +73,7 @@ public class HomeService extends AccessibilityService {
     public boolean onUnbind(Intent i) {
         self = null;
         handler.removeCallbacks(hide);
-        if (cover != null) getSystemService(WindowManager.class).removeViewImmediate(cover);
+        if (cover != null) ((WindowManager) getSystemService(android.content.Context.WINDOW_SERVICE)).removeViewImmediate(cover);
         cover = null;
         covering = false;
         hidePin();
@@ -159,7 +159,7 @@ public class HomeService extends AccessibilityService {
         // Android 10+ (Fire OS 8) blocks this background start unless our uid has a visible window:
         // fire once the cover has drawn, so it counts as one. Fire OS 7 has no such check.
         long delay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? COVER_DRAWN_MS : 0;
-        getSystemService(AlarmManager.class).setExact(AlarmManager.ELAPSED_REALTIME,
+        ((AlarmManager) getSystemService(android.content.Context.ALARM_SERVICE)).setExact(AlarmManager.ELAPSED_REALTIME,
                 SystemClock.elapsedRealtime() + delay, launch(this));
         // The Amazon launcher holds ~130 MB; reclaim it once it's behind us (after the 5 s guard).
         ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
@@ -200,7 +200,7 @@ public class HomeService extends AccessibilityService {
         PendingIntent pi = PendingIntent.getActivity(this, 1, i, PendingIntent.FLAG_UPDATE_CURRENT,
                 ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle());
         long delay = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? COVER_DRAWN_MS : 0;
-        getSystemService(AlarmManager.class).setExact(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, pi);
+        ((AlarmManager) getSystemService(android.content.Context.ALARM_SERVICE)).setExact(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, pi);
     }
 
     /** Done with Amazon's page; with nothing to search, take the cover down and leave it showing. */
@@ -210,7 +210,7 @@ public class HomeService extends AccessibilityService {
         removeMask();
     }
 
-    private static PendingIntent launch(Context c) {
+    static PendingIntent launch(Context c) {
         Intent i = new Intent(c, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         return PendingIntent.getActivity(c, 0, i, PendingIntent.FLAG_UPDATE_CURRENT,
@@ -219,7 +219,7 @@ public class HomeService extends AccessibilityService {
 
     /** Home is in front (or the user went elsewhere): cancel a bounce that hasn't fired yet. */
     static void arrived(Context c) {
-        c.getSystemService(AlarmManager.class).cancel(launch(c));
+        ((AlarmManager) c.getSystemService(android.content.Context.ALARM_SERVICE)).cancel(launch(c));
     }
 
     static boolean maskShowing() {
@@ -245,7 +245,7 @@ public class HomeService extends AccessibilityService {
                 PixelFormat.OPAQUE);
         lp.windowAnimations = 0;
         try {
-            getSystemService(WindowManager.class).addView(v, lp);
+            ((WindowManager) getSystemService(android.content.Context.WINDOW_SERVICE)).addView(v, lp);
         } catch (RuntimeException ex) {
             Log.w(TAG, "cover failed", ex);
             return;
@@ -264,7 +264,7 @@ public class HomeService extends AccessibilityService {
         cover.addView(Look.loading(this, MainActivity.dockCount, MainActivity.accent));
         // Focusable while showing, so remote keys don't reach Amazon's home underneath.
         coverLp.flags &= ~PASSIVE;
-        getSystemService(WindowManager.class).updateViewLayout(cover, coverLp);
+        ((WindowManager) getSystemService(android.content.Context.WINDOW_SERVICE)).updateViewLayout(cover, coverLp);
         cover.setVisibility(View.VISIBLE);
         // Never strand the remote behind the loading screen if the bounce fails.
         handler.postDelayed(hide, 8000);
@@ -279,44 +279,52 @@ public class HomeService extends AccessibilityService {
             cover.setVisibility(View.GONE);
             cover.removeAllViews();
             coverLp.flags |= PASSIVE;
-            getSystemService(WindowManager.class).updateViewLayout(cover, coverLp);
+            ((WindowManager) getSystemService(android.content.Context.WINDOW_SERVICE)).updateViewLayout(cover, coverLp);
         });
     }
 
     /** Package of the app in front, for the phone's "now playing". */
-    String front() { return front; }
+    @Override public String front() { return front; }
 
     /** Home from the phone: straight to this launcher (no Home key, so no 5 s app-switch hold). */
-    void goHome() {
+    @Override public void goHome() {
         startActivity(new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
     }
 
-    /** Pairing code, top right over whatever is on screen, for two minutes. */
-    void showPin(String pin, String device) {
-        hidePin();
-        LinearLayout card = new LinearLayout(this);
+    /** The pairing code card (also Legacy's on Fire OS 5). */
+    static LinearLayout pinCard(Context c, String pin, String device) {
+        LinearLayout card = new LinearLayout(c);
         card.setOrientation(LinearLayout.VERTICAL);
-        int pad = Look.dp(this, 26);
-        card.setPadding(pad, Look.dp(this, 22), pad, Look.dp(this, 24));
+        int pad = Look.dp(c, 26);
+        card.setPadding(pad, Look.dp(c, 22), pad, Look.dp(c, 24));
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(Look.dp(this, 28));
+        bg.setCornerRadius(Look.dp(c, 28));
         bg.setColor(0xEB121420);
-        bg.setStroke(Look.dp(this, 1), 0x33FFFFFF);
+        bg.setStroke(Look.dp(c, 1), 0x33FFFFFF);
         card.setBackground(bg);
-        TextView head = Look.text(this, Look.sans(this, 600), 16, 0xE6FFFFFF);
+        TextView head = Look.text(c, Look.sans(c, 600), 16, 0xE6FFFFFF);
         head.setText("Pair " + device);
-        TextView code = Look.text(this, Look.serif(this), 72, 0xFFFFFFFF);
+        TextView code = Look.text(c, Look.serif(c), 72, 0xFFFFFFFF);
         code.setText(pin);
         code.setLetterSpacing(0.18f);
-        TextView hint = Look.text(this, Look.sans(this, 500), 14, 0x99FFFFFF);
+        TextView hint = Look.text(c, Look.sans(c, 500), 14, 0x99FFFFFF);
         hint.setText("Type this code on your phone");
         hint.setSingleLine(true);
+        // Android 5 measured the card a few characters short of the hint ("…on your phor").
+        if (android.os.Build.VERSION.SDK_INT < 23) card.setMinimumWidth(Look.dp(c, 270));
         card.addView(head);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
-        cp.setMargins(0, Look.dp(this, 10), 0, Look.dp(this, 8));
+        cp.setMargins(0, Look.dp(c, 10), 0, Look.dp(c, 8));
         card.addView(code, cp);
         card.addView(hint);
+        return card;
+    }
+
+    /** Pairing code, top right over whatever is on screen, for two minutes. */
+    @Override public void showPin(String pin, String device) {
+        hidePin();
+        LinearLayout card = pinCard(this, pin, device);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(-2, -2,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
@@ -325,7 +333,7 @@ public class HomeService extends AccessibilityService {
         lp.x = Look.dp(this, 48);
         lp.y = Look.dp(this, 40);
         try {
-            getSystemService(WindowManager.class).addView(card, lp);
+            ((WindowManager) getSystemService(android.content.Context.WINDOW_SERVICE)).addView(card, lp);
         } catch (RuntimeException e) {
             Log.w(TAG, "pin overlay failed", e);
             return;
@@ -337,13 +345,13 @@ public class HomeService extends AccessibilityService {
         handler.postDelayed(pinTimeout, 120_000);
     }
 
-    void hidePin() {
+    @Override public void hidePin() {
         handler.removeCallbacks(pinTimeout);
         View v = pinView;
         if (v == null) return;
         pinView = null;
         v.animate().alpha(0f).setDuration(Look.ms(this, 180))
-                .withEndAction(() -> getSystemService(WindowManager.class).removeViewImmediate(v)).start();
+                .withEndAction(() -> ((WindowManager) getSystemService(android.content.Context.WINDOW_SERVICE)).removeViewImmediate(v)).start();
     }
 
     @Override

@@ -185,7 +185,7 @@ public class MainActivity extends Activity {
         updateWifi();
         if (HomeSettings.version(this) != appliedSettings) applySettings();
         showSky(true);
-        if (getPackageManager().getChangedPackages(packageSeq) != null) buildApps();
+        if (android.os.Build.VERSION.SDK_INT >= 26 && getPackageManager().getChangedPackages(packageSeq) != null) buildApps();
         loadContent();
         restoreFocus();
         scheduleAdvance();
@@ -225,7 +225,7 @@ public class MainActivity extends Activity {
         sky.setRunning(false);
         handler.removeCallbacks(advance);
         unregisterReceiver(tick);
-        if (netWatch != null) getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netWatch);
+        if (netWatch != null) ((ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE)).unregisterNetworkCallback(netWatch);
         netWatch = null;
         if (options != null) options.dismiss();
     }
@@ -378,7 +378,7 @@ public class MainActivity extends Activity {
 
         appTitle = Look.text(this, Look.serif(this), 44, Color.WHITE);
         appTitle.setSingleLine(true);
-        appTitle.setShadowLayer(dp(16), 0, dp(1), 0x66000000);
+        Look.shadow(appTitle, dp(16), 0, dp(1), 0x66000000);
         appTitle.setVisibility(View.GONE);
         FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
         tp.setMargins(dp(Look.PAD_X), 0, 0, dp(176));
@@ -405,16 +405,19 @@ public class MainActivity extends Activity {
         // names shrink to fit; the synopsis always takes exactly two lines.
         heroTitle.setSingleLine(true);
         heroTitle.setEllipsize(TextUtils.TruncateAt.END);
-        heroTitle.setAutoSizeTextTypeUniformWithConfiguration(26, 42, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
+        if (android.os.Build.VERSION.SDK_INT >= 26) heroTitle.setAutoSizeTextTypeUniformWithConfiguration(26, 42, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
         heroLabel.setSingleLine(true);
-        chips = new LinearLayout(this);
+        chips = new LinearLayout(this) {
+            // Its words don't overlap, so on Fire OS 5 it can fade without an offscreen layer (Look.LITE).
+            @Override public boolean hasOverlappingRendering() { return !Look.LITE; }
+        };
         chips.setGravity(Gravity.CENTER_VERTICAL);
         chips.setMinimumHeight(dp(18));
         heroOverview = Look.text(this, Look.sans(this, 400), 14, 0xB3FFFFFF);
         heroOverview.setLines(2);
         heroOverview.setEllipsize(TextUtils.TruncateAt.END);
         heroOverview.setLineSpacing(dp(4), 1f);
-        for (TextView t : new TextView[]{heroLabel, heroTitle, heroOverview}) t.setShadowLayer(dp(14), 0, dp(1), 0x80000000);
+        for (TextView t : new TextView[]{heroLabel, heroTitle, heroOverview}) Look.shadow(t, dp(14), 0, dp(1), 0x80000000);
 
         info.addView(heroLabel);
         info.addView(heroTitle, llp(-1, dp(54), 0, dp(4), 0, 0));
@@ -598,8 +601,10 @@ public class MainActivity extends Activity {
 
     private void buildApps() {
         PackageManager pm = getPackageManager();
-        android.content.pm.ChangedPackages changed = pm.getChangedPackages(packageSeq);
-        if (changed != null) packageSeq = changed.getSequenceNumber();
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            android.content.pm.ChangedPackages changed = pm.getChangedPackages(packageSeq);
+            if (changed != null) packageSeq = changed.getSequenceNumber();
+        }
         Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         Map<String, App> byPkg = new HashMap<>();
         for (ResolveInfo ri : pm.queryIntentActivities(q, 0)) {
@@ -684,8 +689,8 @@ public class MainActivity extends Activity {
         card.setClickable(true);
         card.setLongClickable(true);
         Look.roundClip(card, dp(Look.TILE_RADIUS));
-        card.setOutlineSpotShadowColor(color);
-        card.setOutlineAmbientShadowColor(color);
+        if (android.os.Build.VERSION.SDK_INT >= 28) card.setOutlineSpotShadowColor(color);
+        if (android.os.Build.VERSION.SDK_INT >= 28) card.setOutlineAmbientShadowColor(color);
 
         View streak = new View(this);
         streak.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
@@ -712,12 +717,12 @@ public class MainActivity extends Activity {
             if (has && (fast || calm)) {
                 // Sweeping along a row: settle quickly and skip the light streak, so focus keeps
                 // up with the key instead of a queue of springy animations trailing behind it.
-                v.animate().scaleX(1.08f).scaleY(1.08f).translationZ(dp(16))
+                v.animate().scaleX(1.08f).scaleY(1.08f).translationZ(Look.LITE ? 0 : dp(16))
                         .setInterpolator(new DecelerateInterpolator(2f)).setDuration(ms(150)).start();
                 focusRim.animate().alpha(1f).setDuration(ms(100)).start();
                 if (label != null) label.animate().alpha(1f).translationY(dp(4)).setDuration(ms(120)).start();
             } else if (has) {
-                v.animate().scaleX(1.08f).scaleY(1.08f).translationZ(dp(16))
+                v.animate().scaleX(1.08f).scaleY(1.08f).translationZ(Look.LITE ? 0 : dp(16))
                         .setInterpolator(new OvershootInterpolator(1.5f)).setDuration(ms(460)).start();
                 focusRim.animate().alpha(1f).setDuration(ms(200)).start();
                 float w = v.getWidth();
@@ -819,7 +824,7 @@ public class MainActivity extends Activity {
         long token = ++heroToken;
         // Text and picture change together: the swap waits for the picture (usually prepared
         // already, see prepareNext), and the picture goes up the moment the new text does.
-        java.util.function.Consumer<Bitmap> swap = b -> swapInfo(dir, () -> {
+        Look.Fn<Bitmap> swap = b -> swapInfo(dir, () -> {
             heroLabel.setText(heroApp != null ? "Trending elsewhere, nothing new on " + heroApp.label
                     : "Trending on " + appLabel);
             heroTitle.setText(t.optString("title"));
@@ -931,7 +936,7 @@ public class MainActivity extends Activity {
         sky.setLook(HomeSettings.get(this, HomeSettings.LOOK));
         boolean photo = HomeSettings.get(this, HomeSettings.LOOK) == SkyView.WALLPAPER;
         bar.onPhoto(this, photo);
-        appTitle.setShadowLayer(dp(photo ? 8 : 16), 0, dp(1), photo ? 0xCC000000 : 0x66000000);
+        Look.shadow(appTitle, dp(photo ? 8 : 16), 0, dp(1), photo ? 0xCC000000 : 0x66000000);
         bar.weather.setVisibility(HomeSettings.get(this, HomeSettings.WEATHER) == 1 ? View.VISIBLE : View.GONE);
         crowded = false;
         applyNavStyle();
@@ -1079,7 +1084,7 @@ public class MainActivity extends Activity {
         name.setText(t.optString("title"));
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
-        name.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+        Look.shadow(name, dp(6), 0, dp(1), 0x99000000);
         words.addView(name);
         String watchedOn = t.optString("watchedPkg", null);
         String ep = t.optString("episode", "");
@@ -1159,7 +1164,7 @@ public class MainActivity extends Activity {
             TextView name = Look.text(this, Look.serif(this), 15, Color.WHITE);
             name.setText(t.optString("title"));
             name.setMaxLines(3);
-            name.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+            Look.shadow(name, dp(6), 0, dp(1), 0x99000000);
             name.setPadding(dp(10), 0, dp(10), dp(10));
             poster.addView(name, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         }
@@ -1205,7 +1210,7 @@ public class MainActivity extends Activity {
     }
 
     private void watchNetwork() {
-        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        ConnectivityManager cm = ((ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE));
         online = isOnline(cm);
         netWatch = new ConnectivityManager.NetworkCallback() {
             @Override public void onCapabilitiesChanged(Network n, NetworkCapabilities caps) { recheck(); }
@@ -1219,10 +1224,16 @@ public class MainActivity extends Activity {
                 loadContent();
             }
         };
-        cm.registerDefaultNetworkCallback(netWatch, handler);
+        if (android.os.Build.VERSION.SDK_INT >= 26) cm.registerDefaultNetworkCallback(netWatch, handler);
+        else cm.registerNetworkCallback(new android.net.NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), netWatch);
     }
 
     private static boolean isOnline(ConnectivityManager cm) {
+        if (android.os.Build.VERSION.SDK_INT < 23) {
+            android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+            return ni != null && ni.isConnected();
+        }
         NetworkCapabilities caps = cm.getNetworkCapabilities(cm.getActiveNetwork());
         return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
@@ -1438,7 +1449,11 @@ public class MainActivity extends Activity {
         for (String[] s : FIRE_SETTINGS) rows.add(optionRow(s[0], () -> launch(new Intent(s[1])
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK))));
         // ...and the rest (display, sound, preferences, accessibility, account) via Amazon's tab.
-        rows.add(optionRow("All settings", () -> HomeService.openAmazonSettings(this)));
+        // Fire OS 5 has no HomeService; there Amazon's full Settings grid is its own activity, open to all.
+        rows.add(optionRow("All settings", () -> {
+            if (!HomeService.openAmazonSettings(this)) launch(new Intent().setClassName(HomeService.AMAZON_HOME,
+                    HomeService.AMAZON_HOME + ".ui.MainSettingsActivity").addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        }));
         rows.add(0, optionRow("Customise home", () -> startActivity(new Intent(this, HomeSettings.class))));
         showSheet(anchor, rows, anchor.getWidth() - dp(SHEET_W));
     }

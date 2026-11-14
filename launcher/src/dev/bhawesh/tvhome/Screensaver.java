@@ -120,7 +120,7 @@ public class Screensaver extends DreamService {
         c.setGravity(Gravity.END);
         smallTime = Look.text(this, Look.serif(this), 40, Color.WHITE);
         smallDate = Look.text(this, Look.sans(this, 500), 14, 0xB3FFFFFF);
-        for (TextView t : new TextView[]{smallTime, smallDate}) t.setShadowLayer(Look.dp(this, 12), 0, 0, 0x99000000);
+        for (TextView t : new TextView[]{smallTime, smallDate}) Look.shadow(t, Look.dp(this, 12), 0, 0, 0x99000000);
         c.addView(smallTime);
         c.addView(smallDate);
         updateSmallClock();

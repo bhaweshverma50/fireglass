@@ -55,6 +55,13 @@ final class Keys {
      * adb, once per boot (docs/remote-api.md).
      */
     static String bootstrapCommand(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 23) {
+            // Fire OS 5's toolbox has no pkill or setsid, and adbd kills the shell's process group
+            // when the phone hangs up. `set -m` gives the background job a group of its own. An
+            // older injector still running is told to quit by connect().
+            return "CLASSPATH=" + c.getApplicationInfo().sourceDir + " sh -c 'set -m; nohup app_process /system/bin"
+                    + " dev.bhawesh.tvhome.KeyServer " + secret(c) + " </dev/null >/dev/null 2>&1 &'";
+        }
         // Anchored: the shell running this line has the same text in its own command line.
         return "pkill -f '^app_process /system/bin dev.bhawesh.tvhome.KeyServer'; CLASSPATH=" + c.getApplicationInfo().sourceDir
                 // In a new session, started before this command returns: the phone's adb shell has a

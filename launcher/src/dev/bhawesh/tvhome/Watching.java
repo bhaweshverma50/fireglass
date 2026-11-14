@@ -38,13 +38,24 @@ public class Watching extends NotificationListenerService {
     // The item each session's minute is running for.
     private final Map<MediaController, String> timing = new HashMap<>();
     private MediaSessionManager msm;
+    // Fire OS 5 has no HomeService (see Legacy); the Home takeover and phone remote run from here.
+    private Legacy legacy;
     private final MediaSessionManager.OnActiveSessionsChangedListener changed = this::track;
 
     @Override
     public void onListenerConnected() {
-        msm = getSystemService(MediaSessionManager.class);
+        // Android 5 (Fire OS 5) calls this on a binder thread, where the session listener can't
+        // make its Handler and throws: watch history never started there. Do it all on main.
+        handler.post(this::connect);
+    }
+
+    private void connect() {
+        if (android.os.Build.VERSION.SDK_INT < 23 && legacy == null) legacy = new Legacy(this);
+        msm = ((MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE));
         ComponentName me = new ComponentName(this, Watching.class);
-        msm.addOnActiveSessionsChangedListener(changed, me);
+        // Before Android 7 a rebind doesn't call onListenerDisconnected: drop any old registration.
+        msm.removeOnActiveSessionsChangedListener(changed);
+        msm.addOnActiveSessionsChangedListener(changed, me, handler);
         List<MediaController> now = msm.getActiveSessions(me);
         Log.i(TAG, "watch history listening; sessions: " + now.size());
         track(now);
@@ -67,6 +78,13 @@ public class Watching extends NotificationListenerService {
         seen.edit().putString(pkg, what).apply();
         Log.i(TAG, "continue watching card " + pkg + ": " + what);
         new Thread(() -> Catalog.watchedCard(this, pkg, what), "watched").start();
+    }
+
+    @Override
+    public void onDestroy() {
+        if (legacy != null) legacy.stop();
+        legacy = null;
+        super.onDestroy();
     }
 
     @Override

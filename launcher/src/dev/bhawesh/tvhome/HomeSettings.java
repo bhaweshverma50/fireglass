@@ -467,7 +467,7 @@ public class HomeSettings extends Activity {
             p.setTextSize(size);
             p.setTextAlign(align);
             p.setTypeface(serif ? Look.serif(getContext()) : Look.sans(getContext(), 500));
-            p.setShadowLayer(size * 0.3f, 0, 0, 0x66000000);
+            if (!Look.LITE) p.setShadowLayer(size * 0.3f, 0, 0, 0x66000000);
             c.drawText(s, x, y, p);
             p.clearShadowLayer();
         }

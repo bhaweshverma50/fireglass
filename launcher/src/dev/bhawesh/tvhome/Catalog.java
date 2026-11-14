@@ -19,7 +19,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -101,11 +100,11 @@ final class Catalog {
             }
             recs = withArt;
             recsAt = System.currentTimeMillis();
-            Files.write(cache.toPath(), recs.toString().getBytes(StandardCharsets.UTF_8));
+            Look.write(cache, recs.toString().getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             Log.w(TAG, "recs offline: " + e);
             if (recs == null && cache.exists()) {
-                try { recs = new JSONArray(new String(Files.readAllBytes(cache.toPath()), StandardCharsets.UTF_8)); }
+                try { recs = new JSONArray(new String(Look.read(cache), StandardCharsets.UTF_8)); }
                 catch (IOException ignored) { }
             }
             if (recs == null) recs = new JSONArray();
@@ -349,12 +348,17 @@ final class Catalog {
         }
     }
 
-    /** The catalogue title named exactly {@code show} that {@code pkg} offers, or null. */
+    /** Letters and digits only: Netflix's "STEEL BALL RUN JoJo’s Bizarre Adventure" is the catalogue's "Steel Ball Run: JoJo's Bizarre Adventure". */
+    static String norm(String s) {
+        return s.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    /** The catalogue title named {@code show} (case and punctuation aside) that {@code pkg} offers, or null. */
     private static JSONObject match(Context c, String pkg, String show) throws IOException, JSONException {
         JSONArray found = search(c, show, 5);
         for (int i = 0; i < found.length(); i++) {
             JSONObject t = found.getJSONObject(i);
-            if (!t.getString("title").equalsIgnoreCase(show)) continue;
+            if (!norm(t.getString("title")).equals(norm(show))) continue;
             JSONArray o = t.getJSONArray("offers");
             for (int k = 0; k < o.length(); k++) if (pkg.equals(o.getJSONObject(k).optString("pkg"))) return t;
         }

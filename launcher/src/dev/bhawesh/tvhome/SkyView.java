@@ -83,10 +83,11 @@ final class SkyView extends View {
     private final Paint skyPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint grain = new Paint();
     private final Rect dst = new Rect();
-    private boolean running, grainOn = true;
+    private static final boolean GRAIN = !Look.LITE;
+    private boolean running, grainOn = GRAIN;
 
     /** The grain is a full-screen blend each frame; skipped while the home shows a picture. */
-    void setGrain(boolean on) { if (grainOn != on) { grainOn = on; invalidate(); } }
+    void setGrain(boolean on) { on &= GRAIN; if (grainOn != on) { grainOn = on; invalidate(); } }
 
     // Accent: the focused app's colour and how strongly it shows, eased over ACCENT_MS.
     private static final long ACCENT_MS = 700;

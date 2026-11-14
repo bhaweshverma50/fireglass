@@ -112,7 +112,7 @@ public class LightsActivity extends Activity {
         glow = new Glow(this);
         card.addView(glow, new FrameLayout.LayoutParams(-1, -1));
         status = Look.text(this, Look.sans(this, 600), 14, Color.WHITE);
-        status.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+        Look.shadow(status, dp(6), 0, dp(1), 0x99000000);
         FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
         sp.setMargins(dp(16), 0, 0, dp(14));
         card.addView(status, sp);

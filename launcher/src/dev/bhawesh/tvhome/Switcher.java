@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * Apps in use, like a phone's recents: the apps opened in the last day, newest first. OK switches
@@ -35,14 +34,14 @@ final class Switcher extends FrameLayout {
     /** Closed here, and when: an app stays off the list until it's used again. */
     private static final Map<String, Long> closedAt = new HashMap<>();
 
-    private final Consumer<MainActivity.App> open;
+    private final Look.Fn<MainActivity.App> open;
     private final Runnable done;
     private final LinearLayout row;
     private final TextView empty;
     private final List<View> cards = new ArrayList<>();
     private TextView closeAll;
 
-    Switcher(Context c, Map<String, MainActivity.App> apps, Consumer<MainActivity.App> open, Runnable done) {
+    Switcher(Context c, Map<String, MainActivity.App> apps, Look.Fn<MainActivity.App> open, Runnable done) {
         super(c);
         this.open = open;
         this.done = done;
@@ -115,7 +114,7 @@ final class Switcher extends FrameLayout {
             if (prev == null || u.getLastTimeUsed() > prev) last.put(u.getPackageName(), u.getLastTimeUsed());
         }
         List<Map.Entry<String, Long>> order = new ArrayList<>(last.entrySet());
-        order.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+        java.util.Collections.sort(order, (a, b) -> Long.compare(b.getValue(), a.getValue()));
         for (Map.Entry<String, Long> e : order) {
             MainActivity.App a = apps.get(e.getKey());
             Long closed = closedAt.get(e.getKey());
@@ -136,8 +135,8 @@ final class Switcher extends FrameLayout {
         card.setTag(a);
         Look.roundClip(card, dp(16));
         card.setBackgroundColor(0xFF1C1C22);
-        card.setOutlineSpotShadowColor(a.color);
-        card.setOutlineAmbientShadowColor(a.color);
+        if (android.os.Build.VERSION.SDK_INT >= 28) card.setOutlineSpotShadowColor(a.color);
+        if (android.os.Build.VERSION.SDK_INT >= 28) card.setOutlineAmbientShadowColor(a.color);
         ImageView img = new ImageView(getContext());
         img.setImageDrawable(a.art);
         img.setScaleType(a.isBanner ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);

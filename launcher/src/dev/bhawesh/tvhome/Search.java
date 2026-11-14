@@ -42,6 +42,8 @@ import java.util.concurrent.Executors;
 public class Search extends Activity {
     static final String QUERY = "q", FROM_VOICE = "voice";
     private static final int POSTER_W = 112, PER_ROW = 6, VIDEO_W = 190, VIDEOS_PER_ROW = 4;
+    // Fire OS 5's keyboard is a dialog over the whole screen, hiding the search: type on our own there.
+    private static final boolean OWN_KEYS = android.os.Build.VERSION.SDK_INT < 23;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newFixedThreadPool(2);
@@ -52,6 +54,7 @@ public class Search extends Activity {
     private LinearLayout results, apps, tube; // apps, then YouTube, in results
     private boolean appsDone;
     private ScrollView scroll;
+    private LinearLayout keys;
     private int seq;
     private boolean focusResults; // a voice query: go straight to the first result
     private boolean fromVoice;    // opened over Amazon's results page: Back goes home, not back to it
@@ -88,6 +91,11 @@ public class Search extends Activity {
         LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, dp(56));
         fp.setMargins(dp(Look.PAD_X), 0, dp(Look.PAD_X), 0);
         col.addView(buildField(), fp);
+        if (OWN_KEYS) {
+            LinearLayout.LayoutParams kp = new LinearLayout.LayoutParams(-2, -2);
+            kp.setMargins(dp(Look.PAD_X), dp(16), 0, 0);
+            col.addView(keys = buildKeys(), kp);
+        }
         status = Look.text(this, Look.sans(this, 500), 14, 0x99FFFFFF);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
         sp.setMargins(dp(Look.PAD_X + 4), dp(18), 0, dp(4));
@@ -133,8 +141,12 @@ public class Search extends Activity {
             search();
         } else {
             status.setText("Shows, films and people, on the apps on this TV."); status.setVisibility(View.VISIBLE);
-            field.requestFocus();
-            handler.postDelayed(this::showKeyboard, 250);
+            if (OWN_KEYS) {
+                ((LinearLayout) keys.getChildAt(0)).getChildAt(0).requestFocus();
+            } else {
+                field.requestFocus();
+                handler.postDelayed(this::showKeyboard, 250);
+            }
         }
     }
 
@@ -181,8 +193,60 @@ public class Search extends Activity {
             if (first != null) first.requestFocus();
             return first != null;
         });
+        if (OWN_KEYS) {
+            field.setFocusable(false); // shows what the keys below type
+            field.setShowSoftInputOnFocus(false);
+        }
         pill.addView(field, new LinearLayout.LayoutParams(0, -1, 1f));
         return pill;
+    }
+
+    /** Letters, digits, then space, delete and clear: the remote's arrows and OK type into the field. */
+    private LinearLayout buildKeys() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setClipChildren(false);
+        for (String row : new String[]{"abcdefghijklm", "nopqrstuvwxyz", "1234567890"}) {
+            LinearLayout r = new LinearLayout(this);
+            r.setClipChildren(false);
+            for (char ch : row.toCharArray()) r.addView(key(String.valueOf(ch), () -> type(String.valueOf(ch)), 40));
+            if (row.startsWith("1")) {
+                r.addView(key("Space", () -> type(" "), 76));
+                r.addView(key("Delete", () -> {
+                    int n = field.length();
+                    if (n > 0) field.getText().delete(n - 1, n);
+                }, 76));
+                r.addView(key("Clear", () -> field.setText(""), 76));
+            }
+            box.addView(r, lp(-2, -2, box.getChildCount() == 0 ? 0 : dp(6)));
+        }
+        return box;
+    }
+
+    private void type(String s) {
+        if (field.length() < 60) field.append(s);
+    }
+
+    private TextView key(String label, Runnable act, int w) {
+        TextView k = Look.text(this, Look.sans(this, 600), label.length() == 1 ? 17 : 13, 0xE6FFFFFF);
+        k.setText(label);
+        k.setGravity(Gravity.CENTER);
+        k.setFocusable(true);
+        k.setClickable(true);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(10));
+        bg.setColor(0x1AFFFFFF);
+        k.setBackground(bg);
+        k.setOnClickListener(v -> act.run());
+        k.setOnFocusChangeListener((v, has) -> {
+            bg.setColor(has ? 0xF2FFFFFF : 0x1AFFFFFF);
+            k.setTextColor(has ? 0xFF111114 : 0xE6FFFFFF);
+            k.animate().scaleX(has ? 1.12f : 1f).scaleY(has ? 1.12f : 1f).setDuration(has ? 160 : 120).start();
+        });
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(w), dp(36));
+        p.setMargins(0, 0, dp(6), 0);
+        k.setLayoutParams(p);
+        return k;
     }
 
     private void search() {
@@ -391,11 +455,11 @@ public class Search extends Activity {
     }
 
     private void showKeyboard() {
-        getSystemService(InputMethodManager.class).showSoftInput(field, 0); // explicit: Fire TV's keyboard ignores implicit requests
+        ((InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(field, 0); // explicit: Fire TV's keyboard ignores implicit requests
     }
 
     private void hideKeyboard() {
-        getSystemService(InputMethodManager.class).hideSoftInputFromWindow(field.getWindowToken(), 0);
+        ((InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(field.getWindowToken(), 0);
     }
 
     @Override protected void onResume() {
@@ -405,11 +469,23 @@ public class Search extends Activity {
     }
 
     @Override public void onBackPressed() {
+        // On our own keys, Back from the results returns to the keys first.
+        View f = getCurrentFocus();
+        if (OWN_KEYS && f != null && !isKey(f)) {
+            ((LinearLayout) keys.getChildAt(0)).getChildAt(0).requestFocus();
+            scroll.smoothScrollTo(0, 0);
+            return;
+        }
         if (fromVoice) startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
         finish();
     }
     @Override protected void onPause() { super.onPause(); sky.setRunning(false); }
     @Override protected void onDestroy() { io.shutdownNow(); super.onDestroy(); }
+
+    private boolean isKey(View v) {
+        for (View p = v; p != null; p = p.getParent() instanceof View ? (View) p.getParent() : null) if (p == keys) return true;
+        return false;
+    }
 
     private static LinearLayout.LayoutParams lp(int w, int h, int top) {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w, h);

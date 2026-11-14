@@ -22,12 +22,12 @@ import java.nio.charset.StandardCharsets;
  * because it boots a new runtime every time, while this stays up and injects in ~1 ms.
  *
  * Listens on 127.0.0.1:{@link #PORT}. Line protocol, first line must be "auth <secret>":
- *   key <keycode> <long 0|1>   text <utf-8 text>   stop <package>   version   quit
+ *   key <keycode> <long 0|1>   text <utf-8 text>   stop <package>   resume   version   quit
  * Each command is answered with "ok" or "err <reason>".
  */
 public final class KeyServer {
     static final int PORT = 8091;
-    static final String VERSION = "2";
+    static final String VERSION = "3";
     // ~20 MB while alive. Restarting needs the phone, so it stays up for a day of no use.
     private static final int IDLE_EXIT_MS = 24 * 60 * 60 * 1000;
 
@@ -81,6 +81,12 @@ public final class KeyServer {
                     String pkg = line.substring(5);
                     if (!pkg.matches("[A-Za-z0-9_.]+")) reply = "err pkg";
                     else Runtime.getRuntime().exec(new String[]{"am", "force-stop", pkg}).waitFor();
+                } else if (line.equals("resume")) {
+                    // Android holds app launches for ~5 s after a Home press; shell may lift the hold.
+                    // Fire OS 5 needs this: Legacy's launch home otherwise waits the full 5 s.
+                    Class<?> amn = Class.forName("android.app.ActivityManagerNative");
+                    Object am = amn.getMethod("getDefault").invoke(null);
+                    am.getClass().getMethod("resumeAppSwitches").invoke(am);
                 } else if (line.equals("version")) {
                     reply = "ok " + VERSION;
                 } else if (line.equals("quit")) {

@@ -187,10 +187,7 @@ final class Wallpapers {
         shade(cv, W * 0.17f, H * 0.09f, W * 0.46f, 0xB3);
         shade(cv, W * 0.86f, H * 0.08f, W * 0.24f, 0x73);
         shade(cv, W * 0.14f, H * 0.62f, W * 0.40f, 0x8C);
-        Bitmap gpu = b.copy(Bitmap.Config.HARDWARE, false);
-        if (gpu == null) return b;
-        b.recycle();
-        return gpu;
+        return Look.gpu(b);
     }
 
     /** A soft oval of shade, twice as wide as tall, fading out from {@code alpha} at its centre. */

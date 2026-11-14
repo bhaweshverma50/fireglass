@@ -20,12 +20,12 @@ B=build
 
 rm -rf "$B" && mkdir -p "$B/gen" "$B/classes" "$B/dex"
 "$BT/aapt2" compile --dir res -o "$B/res.zip"
-# Fire OS 7 is Android 9 (API 28).
+# Fire OS 5 is Android 5.1 (API 22), Fire OS 7 is Android 9 (API 28); newer calls are guarded by SDK_INT.
 "$BT/aapt2" link -o "$B/base.apk" -I "$JAR" --manifest AndroidManifest.xml --java "$B/gen" \
-  -A assets --min-sdk-version 28 --target-sdk-version 30 "$B/res.zip"
+  -A assets --min-sdk-version 22 --target-sdk-version 30 "$B/res.zip"
 javac -nowarn -Xlint:-options --release 11 -classpath "$JAR" -d "$B/classes" \
   $(find src "$B/gen" -name '*.java')
-"$BT/d8" --min-api 28 --lib "$JAR" --output "$B/dex" $(find "$B/classes" -name '*.class')
+"$BT/d8" --min-api 22 --lib "$JAR" --output "$B/dex" $(find "$B/classes" -name '*.class')
 cp "$B/base.apk" "$B/unsigned.apk"
 (cd "$B/dex" && zip -q -u ../unsigned.apk classes.dex)
 "$BT/zipalign" -f 4 "$B/unsigned.apk" "$B/aligned.apk"
@@ -37,12 +37,15 @@ echo "built $B/tvhome.apk ($(wc -c < "$B/tvhome.apk") bytes)"
 
 adb install -r "$B/tvhome.apk"
 adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION || true
-adb shell appops set "$PKG" GET_USAGE_STATS allow
+adb shell appops set "$PKG" GET_USAGE_STATS allow || true
 adb shell pm grant "$PKG" android.permission.WRITE_SECURE_SETTINGS || true
+# Fire OS 5: Legacy follows the log for the Home button (accessibility services are blocked there).
+adb shell pm grant "$PKG" android.permission.READ_LOGS || true
 adb shell pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE || true
 adb shell pm grant "$PKG" android.permission.WRITE_EXTERNAL_STORAGE || true
 # Compile ahead of time now, instead of JIT warming up while you use it (first minutes stutter otherwise).
-adb shell cmd package compile -m speed -f "$PKG" >/dev/null
+# Fire OS 5 (Android 5) compiles at install and has no `cmd`.
+adb shell cmd package compile -m speed -f "$PKG" >/dev/null 2>&1 || true
 # Home button takeover: Fire OS has no default-launcher picker, so the accessibility service does it.
 SVC="$PKG/.HomeService"
 # Re-bind the service so a changed accessibility config takes effect (a reinstall alone leaves it stale).

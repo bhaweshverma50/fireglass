@@ -47,13 +47,23 @@ import java.util.concurrent.Executors;
 
 /**
  * The phone app's API (docs/remote-api.md): a small HTTP/1.1 server on the LAN, advertised over
- * mDNS, paired with a PIN shown on the TV. Lives in HomeService, which is always running.
+ * mDNS, paired with a PIN shown on the TV. Lives in HomeService, which is always running (on Fire OS 5,
+ * in Legacy, see there).
  */
 final class RemoteServer {
     static final int PORT = 8090;
     private static final String TAG = "TvHome";
 
-    private final HomeService svc;
+    /** What the server needs from whatever runs it: HomeService, or Legacy on Fire OS 5. */
+    interface Host {
+        String front();
+        void goHome();
+        void showPin(String pin, String device);
+        void hidePin();
+    }
+
+    private final Context svc;
+    private final Host host;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService pool = Executors.newFixedThreadPool(3);
     private final Map<String, byte[]> banners = new HashMap<>();
@@ -72,7 +82,7 @@ final class RemoteServer {
     private int pinTriesLeft, misses;
     private long nextPinAt;
 
-    RemoteServer(HomeService svc) { this.svc = svc; }
+    RemoteServer(Context svc, Host host) { this.svc = svc; this.host = host; }
 
     void start() {
         Thread t = new Thread(this::acceptLoop, "remote-http");
@@ -239,7 +249,7 @@ final class RemoteServer {
             return Res.json(200, new JSONObject().put("adb_port", 5555).put("cmd", Keys.bootstrapCommand(svc)));
         }
         if (m.equals("GET") && p.equals("/api/now")) {
-            String pkg = svc.front();
+            String pkg = host.front();
             // Nothing seen since the service (re)started: the home screen is what's up.
             if (pkg == null || pkg.isEmpty()) pkg = svc.getPackageName();
             AudioManager am = (AudioManager) svc.getSystemService(Context.AUDIO_SERVICE);
@@ -260,7 +270,7 @@ final class RemoteServer {
         if (m.equals("POST") && p.equals("/api/key")) {
             JSONObject b = r.json();
             String key = b.optString("key");
-            if (key.equals("home")) { svc.goHome(); return ok(); }
+            if (key.equals("home")) { host.goHome(); return ok(); }
             Integer code = KEYCODES.get(key);
             if (code == null) return Res.json(400, err("unknown_key"));
             return keyCmd("key " + code + (b.optBoolean("long") ? " 1" : " 0"));
@@ -318,7 +328,7 @@ final class RemoteServer {
 
     /** Amazon's screensaver can be up too; its window belongs to the dream package. */
     private boolean dreaming() {
-        String f = svc.front();
+        String f = host.front();
         return f != null && f.contains("screensaver");
     }
 
@@ -395,7 +405,7 @@ final class RemoteServer {
             pinUntil = now + 120_000;
             pinTriesLeft = PIN_TRIES;
         }
-        main.post(() -> svc.showPin(shown, device));
+        main.post(() -> host.showPin(shown, device));
         return ok();
     }
 
@@ -410,7 +420,7 @@ final class RemoteServer {
                 // Out of tries: the PIN is gone and the phone has to ask for a new one.
                 if (--pinTriesLeft <= 0) {
                     pin = null;
-                    main.post(svc::hidePin);
+                    main.post(host::hidePin);
                 }
                 return Res.json(403, err("bad_pin").put("tries_left", Math.max(pinTriesLeft, 0)));
             }
@@ -426,7 +436,7 @@ final class RemoteServer {
         Set<String> all = new HashSet<>(tokens());
         all.add(token);
         prefs().edit().putStringSet("tokens", all).apply();
-        main.post(svc::hidePin);
+        main.post(host::hidePin);
         return Res.json(200, new JSONObject().put("token", token).put("name", tvName()));
     }
 

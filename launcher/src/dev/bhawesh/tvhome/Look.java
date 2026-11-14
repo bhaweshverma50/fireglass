@@ -38,6 +38,47 @@ import java.util.Locale;
  * the Home bounce: fonts, glass, icons, and the header and shelf layout both screens must agree on.
  */
 final class Look {
+
+    /** java.util.function.Consumer, which Android 5 (Fire OS 5) doesn't have. */
+    interface Fn<T> { void accept(T t); }
+
+    /**
+     * Fire OS 5 (Android 5.1 on a Mali-450 stick). Its renderer can't do, or can't afford, some
+     * of what newer Fire OS draws for free, so these are skipped there:
+     * - text shadows: Android 5 blurs big ones with RenderScript, which crashes the render thread
+     *   on Fire OS 5 (ScriptIntrinsicBlur::setInput on a null script);
+     * - offscreen layers for fading groups (hasOverlappingRendering): ~8 ms a frame each;
+     * - lifting the focused tile (translationZ): its shadow is re-tessellated every frame;
+     * - film grain over the sky: one more full-screen blended pass.
+     */
+    static final boolean LITE = android.os.Build.VERSION.SDK_INT < 23;
+
+    static void shadow(TextView t, float radius, float dx, float dy, int color) {
+        if (!LITE) t.setShadowLayer(radius, dx, dy, color);
+    }
+
+    /**
+     * The bitmap as a hardware one (uploaded to the GPU once, never again while drawing), or as it
+     * is before Android 8, which has no hardware bitmaps.
+     */
+    static android.graphics.Bitmap gpu(android.graphics.Bitmap b) {
+        if (android.os.Build.VERSION.SDK_INT < 26) return b;
+        android.graphics.Bitmap g = b.copy(android.graphics.Bitmap.Config.HARDWARE, false);
+        if (g == null) return b;
+        b.recycle();
+        return g;
+    }
+
+    /** java.nio.file.Files.write / readAllBytes, which Android 5 doesn't have. */
+    static void write(java.io.File f, byte[] data) throws java.io.IOException {
+        try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(data); }
+    }
+
+    static byte[] read(java.io.File f) throws java.io.IOException {
+        byte[] b = new byte[(int) f.length()];
+        try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.FileInputStream(f))) { in.readFully(b); }
+        return b;
+    }
     private Look() { }
 
     // Layout, in dp. The loading screen and the home screen must line up exactly.
@@ -59,8 +100,14 @@ final class Look {
     static Typeface sans(Context c, int weight) {
         Typeface t = sans.get(weight);
         if (t == null) {
-            t = new Typeface.Builder(c.getAssets(), "fonts/Figtree.ttf")
-                    .setFontVariationSettings("'wght' " + weight).build();
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                t = new Typeface.Builder(c.getAssets(), "fonts/Figtree.ttf")
+                        .setFontVariationSettings("'wght' " + weight).build();
+            } else {
+                // ponytail: no font variations before Android 8, so the default instance plus fake bold.
+                t = Typeface.createFromAsset(c.getAssets(), "fonts/Figtree.ttf");
+                if (weight >= 600) t = Typeface.create(t, Typeface.BOLD);
+            }
             if (t == null) t = Typeface.DEFAULT;
             sans.put(weight, t);
         }
@@ -131,7 +178,7 @@ final class Look {
             LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
             sp.setMargins(dp(c, 18), 0, 0, 0);
             view.addView(side, sp);
-            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather}) t.setShadowLayer(dp(c, 12), 0, dp(c, 1), 0x66000000);
+            for (TextView t : new TextView[]{clock, ampm, greeting, date, weather}) Look.shadow(t, dp(c, 12), 0, dp(c, 1), 0x66000000);
             update(c);
         }
 
@@ -141,7 +188,7 @@ final class Look {
             weather.setTextColor(photo ? 0xE6FFFFFF : 0x99FFFFFF);
             ampm.setTextColor(photo ? 0xE6FFFFFF : 0xB3FFFFFF);
             for (TextView t : new TextView[]{clock, ampm, greeting, date, weather}) {
-                t.setShadowLayer(dp(c, photo ? 5 : 12), 0, dp(c, 1), photo ? 0xD9000000 : 0x66000000);
+                Look.shadow(t, dp(c, photo ? 5 : 12), 0, dp(c, 1), photo ? 0xD9000000 : 0x66000000);
             }
         }
 
