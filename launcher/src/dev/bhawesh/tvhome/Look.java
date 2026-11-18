@@ -303,7 +303,14 @@ final class Look {
             ghost.setBackground(g);
             row.addView(ghost, tileLp(c, APP_W, i == 0));
         }
-        root.addView(row, appsLp(c));
+        // The real row scrolls, so its last tile shows cut off at the edge. A plain LinearLayout
+        // squeezes that tile to nothing, which is why the loader showed one card fewer.
+        android.widget.HorizontalScrollView strip = new android.widget.HorizontalScrollView(c);
+        strip.setHorizontalScrollBarEnabled(false);
+        strip.setFocusable(false);
+        strip.setClipToPadding(false);
+        strip.addView(row, new FrameLayout.LayoutParams(-2, -2));
+        root.addView(strip, appsLp(c));
         sweep(c, root, glasses);
         return root;
     }

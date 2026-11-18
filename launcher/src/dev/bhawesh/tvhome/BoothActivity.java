@@ -56,7 +56,9 @@ import java.util.concurrent.Executors;
  */
 public class BoothActivity extends Activity {
     private static final long POLL_MS = 20_000;
-    private static final int POSTER_W = 92, POSTER_H = 138;
+    private static final int POSTER_W = 80, POSTER_H = 120;
+    private static final int VITAL_H = 62, SVC_H = 34;
+    private static final int LANE_GAP = 30, VITALS_W = 300, COL_GAP = 28, CARD_GAP = 10;
     private static final boolean OWN_KEYS = android.os.Build.VERSION.SDK_INT < 23;
     private static final int GREEN = 0xFF5BD68A, AMBER = 0xFFFFC24D, RED = 0xFFFF6B6B, GREY = 0xFF8A8A96;
 
@@ -145,6 +147,22 @@ public class BoothActivity extends Activity {
         super.onDestroy();
     }
 
+    @Override public boolean dispatchKeyEvent(KeyEvent e) {
+        if (OWN_KEYS && keyBox != null && keyBox.isAttachedToWindow() && active != null
+                && e.getAction() == KeyEvent.ACTION_DOWN) {
+            int code = e.getKeyCode();
+            if (code == KeyEvent.KEYCODE_DEL) {
+                int n = active.length();
+                if (n > 0) active.getText().delete(n - 1, n);
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER) { submit(); return true; }
+            int ch = e.getUnicodeChar();
+            if (ch >= 0x20 && ch != 0x7F && !e.isCtrlPressed()) { active.append(String.valueOf((char) ch)); return true; }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
     @Override public void onBackPressed() {
         if (sheet != null) { closeSheet(); return; }
         super.onBackPressed();
@@ -186,8 +204,8 @@ public class BoothActivity extends Activity {
         hostField.setText(Booth.host(this));
         passField = field("Password", true);
         LinearLayout fields = new LinearLayout(this);
-        fields.addView(wrapField(hostField, dp(330)), lp(dp(330), dp(52), 0, 0));
-        fields.addView(wrapField(passField, dp(300)), lp(dp(300), dp(52), 0, 0, dp(14)));
+        fields.addView(wrapField(hostField, dp(330)), lp(dp(330), dp(52), 0, 0, dp(16)));
+        fields.addView(wrapField(passField, dp(300)), lp(dp(300), dp(52), 0, 0));
         col.addView(fields);
         if (OWN_KEYS) {
             active = passField;
@@ -220,6 +238,7 @@ public class BoothActivity extends Activity {
         f.setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | (password ? EditorInfo.IME_ACTION_DONE : EditorInfo.IME_ACTION_NEXT));
         f.setInputType(password ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
                 : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        f.setTypeface(Look.sans(this, 500)); // after setInputType: password mode switches to monospace
         if (OWN_KEYS) {
             f.setFocusable(false); // shows what the keys below type
             f.setShowSoftInputOnFocus(false);
@@ -287,6 +306,7 @@ public class BoothActivity extends Activity {
         showKey = key("Show", 56, () -> {
             reveal = !reveal;
             passField.setInputType(reveal ? InputType.TYPE_CLASS_TEXT : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            passField.setTypeface(Look.sans(this, 500));
             showKey.setText(reveal ? "Hide" : "Show");
         });
         fn.addView(showKey);
@@ -396,53 +416,57 @@ public class BoothActivity extends Activity {
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setClipToPadding(false);
-        scroll.setPadding(0, 0, 0, dp(40));
+        scroll.setPadding(0, 0, 0, dp(24));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setClipChildren(false);
+        // One left edge for everything: the launcher's own margin.
         col.setPadding(dp(Look.PAD_X), dp(Look.PAD_TOP), dp(Look.PAD_X), 0);
         scroll.addView(col);
         wrap.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
 
-        // header: name and where it is, then the actions
+        // Header: title and where it runs on the left; freshness and actions on the right, centred on the title.
         LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.BOTTOM);
+        head.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout names = new LinearLayout(this);
         names.setOrientation(LinearLayout.VERTICAL);
-        kicker = Look.text(this, Look.sans(this, 600), 13, 0x8CFFFFFF);
-        kicker.setText("Home lab · " + Booth.host(this));
-        names.addView(kicker);
-        TextView title = Look.text(this, Look.serif(this), 40, Color.WHITE);
+        TextView title = Look.text(this, Look.serif(this), 36, Color.WHITE);
         title.setText("Booth");
-        names.addView(title, lp(-2, -2, dp(2), 0));
+        names.addView(title);
+        kicker = Look.text(this, Look.sans(this, 500), 13, 0x99FFFFFF);
+        kicker.setText(Booth.host(this));
+        names.addView(kicker, lp(-2, -2, dp(2), 0));
         head.addView(names, new LinearLayout.LayoutParams(0, -2, 1f));
-        status = Look.text(this, Look.sans(this, 500), 13, 0xB3FFFFFF);
-        status.setGravity(Gravity.END);
-        head.addView(status, lp(-2, -2, 0, dp(10), dp(14)));
+        status = Look.text(this, Look.sans(this, 500), 13, 0x99FFFFFF);
+        head.addView(status, lp(-2, -2, 0, 0, dp(16)));
         TextView again = pill("Refresh", false);
         again.setTag("refresh");
         again.setOnClickListener(v -> refresh());
-        head.addView(again, lp(dp(84), dp(34), 0, 0, dp(8)));
+        head.addView(again, lp(dp(88), dp(36), 0, 0, dp(10)));
         TextView out = pill("Sign out", false);
         out.setTag("signout");
         out.setOnClickListener(v -> signOut());
-        head.addView(out, lp(dp(84), dp(34), 0, 0));
-        col.addView(head, lp(-1, -2, 0, dp(10)));
+        head.addView(out, lp(dp(88), dp(36), 0, 0));
+        col.addView(head, lp(-1, -2, 0, 0));
 
-        // pipeline
-        col.addView(heading("Media pipeline", 0));
+        // Alerts only take space when there is something to say.
+        alerts = new LinearLayout(this);
+        alerts.setOrientation(LinearLayout.VERTICAL);
+        col.addView(alerts, lp(-1, -2, dp(14), 0));
+
+        // The pipeline: four lanes, each a title over cards of one size.
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
         hs.setOverScrollMode(View.OVER_SCROLL_NEVER);
         hs.setClipChildren(false);
         hs.setClipToPadding(false);
-        hs.setPadding(0, dp(8), 0, dp(14)); // room for a lifted poster
+        hs.setPadding(0, dp(6), 0, dp(6)); // room for a lifted poster
         pipelineRow = new LinearLayout(this);
         pipelineRow.setClipChildren(false);
         hs.addView(pipelineRow);
-        col.addView(hs, new LinearLayout.LayoutParams(-1, -2));
+        col.addView(hs, lp(-1, -2, dp(12), 0));
 
-        // two columns: the phone and its alerts, then services and requests
+        // Bottom: the phone on the left, its services on the right; both start on the same line.
         LinearLayout cols = new LinearLayout(this);
         cols.setClipChildren(false);
         LinearLayout left = new LinearLayout(this);
@@ -451,23 +475,18 @@ public class BoothActivity extends Activity {
         vitals = new LinearLayout(this);
         vitals.setOrientation(LinearLayout.VERTICAL);
         left.addView(vitals, lp(-1, -2, dp(8), 0));
-        left.addView(heading("Alerts", dp(20)));
-        alerts = new LinearLayout(this);
-        alerts.setOrientation(LinearLayout.VERTICAL);
-        left.addView(alerts, lp(-1, -2, dp(8), 0));
-        cols.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
+        cols.addView(left, new LinearLayout.LayoutParams(dp(VITALS_W), -2));
         LinearLayout right = new LinearLayout(this);
         right.setOrientation(LinearLayout.VERTICAL);
         right.addView(heading("Services", 0));
-        services = panel();
+        services = new LinearLayout(this);
+        services.setOrientation(LinearLayout.VERTICAL);
         right.addView(services, lp(-1, -2, dp(8), 0));
-        right.addView(heading("Requests", dp(20)));
-        requests = panel();
-        right.addView(requests, lp(-1, -2, dp(8), 0));
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1.25f);
-        rp.setMargins(dp(32), 0, 0, 0);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1f);
+        rp.setMargins(dp(COL_GAP), 0, 0, 0);
         cols.addView(right, rp);
-        col.addView(cols, new LinearLayout.LayoutParams(-1, -2));
+        col.addView(cols, lp(-1, -2, dp(10), 0));
+        requests = null; // requests are handled from the Waiting lane
 
         show(wrap);
         status.setText("Loading…");
@@ -641,7 +660,7 @@ public class BoothActivity extends Activity {
             JSONObject w = wanted.optJSONObject(i);
             if (w != null && !downloading(queue, w.optString("title"))) searching.add(w);
         }
-        stage("Waiting for approval", count(waiting), arr(waiting), "waiting");
+        stage("To approve", count(waiting), arr(waiting), "waiting");
         stage("Searching", searching.size(), searching, "searching");
         stage("Downloading", count(queue), arr(queue), "downloading");
         stage("Ready", count(recent), arr(recent), "ready");
@@ -667,46 +686,43 @@ public class BoothActivity extends Activity {
         LinearLayout g = new LinearLayout(this);
         g.setOrientation(LinearLayout.VERTICAL);
         g.setClipChildren(false);
+        // Lane title: count first (it is what changes), then the name. Sits exactly over the first card.
         LinearLayout label = new LinearLayout(this);
-        label.setGravity(Gravity.CENTER_VERTICAL);
-        View dot = new Lamp(this, kind.equals("ready") ? GREEN : kind.equals("downloading") ? 0xFF6AB7FF
-                : kind.equals("searching") ? AMBER : 0xFFE0A3FF, n > 0);
-        label.addView(dot, new LinearLayout.LayoutParams(dp(9), dp(9)));
-        TextView t = Look.text(this, Look.sans(this, 600), 13, 0xE6FFFFFF);
-        t.setText(name + (n > 0 ? "  " + n : ""));
-        label.addView(t, lp(-2, -2, 0, 0, dp(8)));
-        g.addView(label, lp(-2, -2, 0, dp(10)));
+        label.setGravity(Gravity.BOTTOM);
+        TextView num = Look.text(this, Look.sans(this, 700), 17, n > 0 ? Color.WHITE : 0x59FFFFFF);
+        num.setText(String.valueOf(n));
+        label.addView(num);
+        TextView t = Look.text(this, Look.sans(this, 600), 13, n > 0 ? 0xE6FFFFFF : 0x80FFFFFF);
+        t.setText(name);
+        label.addView(t, lp(-2, -2, 0, dp(3), 0));
+        ((LinearLayout.LayoutParams) t.getLayoutParams()).setMargins(dp(7), 0, 0, dp(1));
+        g.addView(label, lp(-2, -2, 0, dp(8)));
+
         LinearLayout row = new LinearLayout(this);
         row.setClipChildren(false);
         int shown = Math.min(items.size(), 12);
         for (int i = 0; i < shown; i++) {
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(POSTER_W), -2);
-            p.setMargins(i == 0 ? 0 : dp(14), 0, 0, 0);
+            p.setMargins(i == 0 ? 0 : dp(CARD_GAP + 4), 0, 0, 0);
             row.addView(tile(items.get(i), kind), p);
         }
         if (shown == 0) {
-            TextView none = Look.text(this, Look.sans(this, 500), 13, 0x73FFFFFF);
-            none.setText(kind.equals("waiting") ? "Nothing to approve" : kind.equals("searching") ? "Nothing being hunted"
-                    : kind.equals("downloading") ? "Nothing downloading" : "Nothing new yet");
+            // Same footprint as a poster, so every lane lines up whether it is empty or not.
+            TextView none = Look.text(this, Look.sans(this, 500), 12, 0x8CFFFFFF);
+            none.setText(kind.equals("waiting") ? "No requests" : kind.equals("searching") ? "Nothing missing"
+                    : kind.equals("downloading") ? "No downloads" : "Nothing new");
             none.setGravity(Gravity.CENTER);
+            none.setPadding(dp(10), 0, dp(10), 0);
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(dp(Look.TILE_RADIUS));
             bg.setColor(0x14FFFFFF);
+            bg.setStroke(dp(1), 0x1AFFFFFF);
             none.setBackground(bg);
-            row.addView(none, new LinearLayout.LayoutParams(dp(150), dp(POSTER_H)));
+            row.addView(none, new LinearLayout.LayoutParams(dp(POSTER_W), dp(POSTER_H)));
         }
         g.addView(row);
         LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(-2, -2);
-        gp.setMargins(pipelineRow.getChildCount() == 0 ? 0 : dp(26), 0, 0, 0);
-        if (pipelineRow.getChildCount() > 0) {
-            // a hairline between stages
-            View line = new View(this);
-            line.setBackgroundColor(0x1FFFFFFF);
-            LinearLayout.LayoutParams lpl = new LinearLayout.LayoutParams(dp(1), dp(POSTER_H));
-            lpl.setMargins(dp(26), dp(30), 0, 0);
-            pipelineRow.addView(line, lpl);
-            gp.setMargins(dp(26), 0, 0, 0);
-        }
+        gp.setMargins(pipelineRow.getChildCount() == 0 ? 0 : dp(LANE_GAP), 0, 0, 0);
         pipelineRow.addView(g, gp);
     }
 
@@ -762,9 +778,9 @@ public class BoothActivity extends Activity {
 
         TextView name = Look.text(this, Look.sans(this, 600), 12, Color.WHITE);
         name.setText(title);
-        name.setMaxLines(2);
+        name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(name, lp(-1, -2, dp(8), 0));
+        card.addView(name, lp(-1, -2, dp(6), 0));
         TextView line = Look.text(this, Look.sans(this, 500), 11, 0x8CFFFFFF);
         line.setText(sub);
         line.setSingleLine(true);
@@ -816,25 +832,28 @@ public class BoothActivity extends Activity {
         double temp = m.optDouble("cpu_temp", Double.NaN), bt = m.optDouble("battery_temp", 0);
         double free = m.optDouble("disk_free_gb", 0), total = m.optDouble("disk_total_gb", 1);
         int bat = m.optInt("battery"), cpu = m.isNull("cpu") ? -1 : m.optInt("cpu");
-        boolean charging = m.optString("charging").equalsIgnoreCase("Charging");
+        String state = m.optString("charging");
+        String power = state.equalsIgnoreCase("Charging") ? "Charging" : state.equalsIgnoreCase("Full") ? "Full" : "Not charging";
         LinearLayout r1 = new LinearLayout(this), r2 = new LinearLayout(this);
-        r1.addView(vital("Battery", bat + "%", (charging ? "Charging" : m.optString("charging").toLowerCase().equals("full") ? "Full" : "On battery") + " · " + fmt1(bt) + "°",
-                bat / 100f, bat < 20 ? RED : bat < 40 ? AMBER : GREEN), vp(0));
-        r1.addView(vital("Heat", Double.isNaN(temp) ? fmt1(bt) + "°" : Math.round(temp) + "°", Double.isNaN(temp) ? "Battery" : "Chip · battery " + fmt1(bt) + "°",
-                (float) Math.min(1, Math.max(bt, Double.isNaN(temp) ? 0 : temp) / 60), bt >= 42 ? RED : bt >= 38 ? AMBER : GREEN), vp(dp(12)));
-        r2.addView(vital("Storage", fmt1(free) + " GB", "free of " + Math.round(total) + " GB", (float) ((total - free) / total),
+        r1.addView(vital("Battery", bat + "%", power, bat / 100f, bat < 20 ? RED : bat < 40 ? AMBER : GREEN), vp(0));
+        r1.addView(vital("Heat", Math.round(bt) + "°C", Double.isNaN(temp) ? "Battery" : "Chip " + Math.round(temp) + "°C",
+                (float) Math.min(1, bt / 50), bt >= 42 ? RED : bt >= 38 ? AMBER : GREEN), vp(dp(CARD_GAP)));
+        r2.addView(vital("Storage", Math.round(free) + " GB", "free of " + Math.round(total) + " GB", (float) ((total - free) / total),
                 free < 10 ? RED : free < 25 ? AMBER : GREEN), vp(0));
-        r2.addView(vital("CPU", cpu < 0 ? "…" : cpu + "%", "Memory " + fmt1(m.optDouble("mem_used_gb")) + " of " + fmt1(m.optDouble("mem_total_gb")) + " GB",
-                Math.max(0, cpu) / 100f, cpu > 85 ? RED : cpu > 60 ? AMBER : GREEN), vp(dp(12)));
-        vitals.addView(r1);
-        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(-1, -2);
-        p2.setMargins(0, dp(12), 0, 0);
+        r2.addView(vital("Processor", cpu < 0 ? "…" : cpu + "%", fmt1(m.optDouble("mem_used_gb")) + " of " + fmt1(m.optDouble("mem_total_gb")) + " GB memory",
+                Math.max(0, cpu) / 100f, cpu > 85 ? RED : cpu > 60 ? AMBER : GREEN), vp(dp(CARD_GAP)));
+        vitals.addView(r1, new LinearLayout.LayoutParams(-1, dp(VITAL_H)));
+        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(-1, dp(VITAL_H));
+        p2.setMargins(0, dp(CARD_GAP), 0, 0);
         vitals.addView(r2, p2);
-        kicker.setText("Home lab · " + Booth.host(this) + " · up " + uptime(m.optInt("uptime_s")));
+        kicker.setText(Booth.host(this) + ", up " + uptime(m.optInt("uptime_s")));
+        if (!state.equalsIgnoreCase("Charging") && !state.equalsIgnoreCase("Full") && bat < 60) {
+            kicker.setText(kicker.getText() + ". Not charging: check the phone is plugged in.");
+        }
     }
 
     private LinearLayout.LayoutParams vp(int left) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -1, 1f);
         p.setMargins(left, 0, 0, 0);
         return p;
     }
@@ -842,22 +861,27 @@ public class BoothActivity extends Activity {
     private View vital(String label, String value, String sub, float level, int colour) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        Look.Glass g = new Look.Glass(dp(18), 0.8f);
+        Look.Glass g = new Look.Glass(dp(14), 0.8f);
         g.setSmoke(photoSmoke);
         c.setBackground(g);
-        c.setPadding(dp(16), dp(12), dp(16), dp(14));
+        c.setPadding(dp(14), dp(8), dp(14), dp(9));
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.BOTTOM);
+        TextView v = Look.text(this, Look.serif(this), 21, Color.WHITE);
+        v.setText(value);
+        top.addView(v, new LinearLayout.LayoutParams(0, -2, 1f));
         TextView l = Look.text(this, Look.sans(this, 600), 12, 0x99FFFFFF);
         l.setText(label);
-        c.addView(l);
-        TextView v = Look.text(this, Look.serif(this), 30, Color.WHITE);
-        v.setText(value);
-        c.addView(v, lp(-2, -2, dp(2), 0));
-        TextView s = Look.text(this, Look.sans(this, 500), 12, 0xA6FFFFFF);
-        s.setText(sub);
-        s.setSingleLine(true);
-        s.setEllipsize(TextUtils.TruncateAt.END);
-        c.addView(s, lp(-1, -2, 0, 0));
-        c.addView(new Meter(this, Math.max(0.02f, Math.min(1f, level)), colour, 0x26FFFFFF), lp(-1, dp(4), dp(10), 0));
+        top.addView(l, lp(-2, -2, 0, dp(4)));
+        c.addView(top);
+        TextView s2 = Look.text(this, Look.sans(this, 500), 11, 0x99FFFFFF);
+        s2.setText(sub);
+        s2.setSingleLine(true);
+        s2.setEllipsize(TextUtils.TruncateAt.END);
+        c.addView(s2, lp(-1, -2, dp(2), 0));
+        View spacer = new View(this);
+        c.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1f));
+        c.addView(new Meter(this, Math.max(0.02f, Math.min(1f, level)), colour, 0x26FFFFFF), lp(-1, dp(3), 0, 0));
         return c;
     }
 
@@ -873,53 +897,82 @@ public class BoothActivity extends Activity {
 
     private void renderServices(JSONArray list) {
         services.removeAllViews();
-        for (int i = 0; list != null && i < list.length(); i++) {
-            JSONObject s = list.optJSONObject(i);
-            if (s == null) continue;
-            String name = s.optString("name"), label = s.optString("label", name);
-            boolean running = s.optBoolean("running"), off = s.optBoolean("disabled");
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(14), 0, dp(8), 0);
-            row.addView(new Lamp(this, running ? GREEN : off ? AMBER : RED, running), new LinearLayout.LayoutParams(dp(11), dp(11)));
-            LinearLayout text = new LinearLayout(this);
-            text.setOrientation(LinearLayout.VERTICAL);
-            TextView n = Look.text(this, Look.sans(this, 600), 14, Color.WHITE);
-            n.setText(label);
-            text.addView(n);
-            TextView sub = Look.text(this, Look.sans(this, 500), 11, 0x99FFFFFF);
-            sub.setSingleLine(true);
-            sub.setText(s.optString("role") + " · " + (running ? s.optInt("mem_mb") + " MB · up " + uptime(s.optInt("uptime_s"))
-                    : off ? "stopped by you" : "down, not coming back"));
-            text.addView(sub);
-            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f);
-            tp.setMargins(dp(12), 0, dp(8), 0);
-            row.addView(text, tp);
-            TextView main = pill(running ? "Restart" : "Start", false);
-            main.setTag("svc:" + name + ":main");
-            main.setOnClickListener(v -> act((running ? "Restarting " : "Starting ") + label + "…", "/api/services/" + name + "/" + (running ? "restart" : "start")));
-            row.addView(main, lp(dp(72), dp(30), 0, 0, dp(6)));
-            if (running) {
-                TextView stop = pill("Stop", false);
-                stop.setTag("svc:" + name + ":stop");
-                stop.setOnClickListener(v -> {
-                    Sheet sh = new Sheet("Stop " + label + "?", "It stays off until you start it: the watchdog on the phone leaves a stopped service alone.");
-                    sh.add("Stop " + label, () -> act("Stopping " + label + "…", "/api/services/" + name + "/stop"));
-                    sh.add("Cancel", null);
-                    sh.show(1); // starts on Cancel
-                });
-                row.addView(stop, lp(dp(60), dp(30), 0, 0));
-            } else {
-                row.addView(new View(this), lp(dp(60), dp(30), 0, 0)); // keeps the Restart column aligned
+        List<JSONObject> all = arr(list);
+        if (all.isEmpty()) { services.addView(quiet("No services reported.")); return; }
+        int rows = (all.size() + 1) / 2;
+        for (int r = 0; r < rows; r++) {
+            LinearLayout line = new LinearLayout(this);
+            for (int c = 0; c < 2; c++) {
+                int i = c * rows + r; // fill down the first column, then the second
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -1, 1f);
+                cp.setMargins(c == 0 ? 0 : dp(CARD_GAP), 0, 0, 0);
+                line.addView(i < all.size() ? serviceCell(all.get(i)) : new View(this), cp);
             }
-            services.addView(row, new LinearLayout.LayoutParams(-1, dp(46)));
+            LinearLayout.LayoutParams lpr = new LinearLayout.LayoutParams(-1, dp(SVC_H));
+            lpr.setMargins(0, r == 0 ? 0 : dp(6), 0, 0);
+            services.addView(line, lpr);
         }
-        if (services.getChildCount() == 0) services.addView(quiet("No services reported."));
+    }
+
+    /** One service: lamp, name, what it does and its state. Select it for Restart / Stop / Start. */
+    private View serviceCell(JSONObject s) {
+        String name = s.optString("name"), label = s.optString("label", name);
+        boolean running = s.optBoolean("running"), off = s.optBoolean("disabled");
+        LinearLayout cell = new LinearLayout(this);
+        cell.setGravity(Gravity.CENTER_VERTICAL);
+        cell.setPadding(dp(14), 0, dp(12), 0);
+        cell.setFocusable(true);
+        cell.setClickable(true);
+        cell.setTag("svc:" + name);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(10));
+        bg.setColor(0x14FFFFFF);
+        cell.setBackground(bg);
+        cell.addView(new Lamp(this, running ? GREEN : off ? AMBER : RED, running), new LinearLayout.LayoutParams(dp(10), dp(10)));
+        TextView n = Look.text(this, Look.sans(this, 600), 14, Color.WHITE);
+        n.setText(label);
+        n.setSingleLine(true);
+        cell.addView(n, lp(-2, -2, 0, 0, 0));
+        ((LinearLayout.LayoutParams) n.getLayoutParams()).setMargins(dp(12), 0, 0, 0);
+        TextView st = Look.text(this, Look.sans(this, 500), 12, 0x99FFFFFF);
+        st.setSingleLine(true);
+        st.setEllipsize(TextUtils.TruncateAt.END);
+        st.setGravity(Gravity.END);
+        st.setText(running ? s.optString("role") : off ? "Stopped by you" : "Down");
+        if (!running && !off) st.setTextColor(RED);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1f);
+        sp.setMargins(dp(10), 0, 0, 0);
+        cell.addView(st, sp);
+        cell.setOnFocusChangeListener((v, has) -> {
+            bg.setColor(has ? 0xF2FFFFFF : 0x14FFFFFF);
+            n.setTextColor(has ? 0xFF16161C : Color.WHITE);
+            st.setTextColor(has ? 0xB316161C : (!running && !off ? RED : 0x99FFFFFF));
+        });
+        cell.setOnClickListener(v -> {
+            String detail = running ? label + " is running, " + s.optInt("mem_mb") + " MB memory, up " + uptime(s.optInt("uptime_s")) + "."
+                    : off ? label + " is stopped. It stays off until you start it." : label + " is down. The phone retries it every 5 minutes.";
+            Sheet sh = new Sheet(label, detail);
+            if (running) {
+                sh.add("Restart", () -> act("Restarting " + label + "…", "/api/services/" + name + "/restart"));
+                if (!name.equals("tailscaled")) sh.add("Stop", () -> {
+                    Sheet c = new Sheet("Stop " + label + "?", "It stays off until you start it again.");
+                    c.add("Stop " + label, () -> act("Stopping " + label + "…", "/api/services/" + name + "/stop"));
+                    c.add("Cancel", null);
+                    c.show(1); // starts on Cancel
+                });
+            } else {
+                sh.add("Start", () -> act("Starting " + label + "…", "/api/services/" + name + "/start"));
+            }
+            sh.add("Close", null);
+            sh.show(0);
+        });
+        return cell;
     }
 
     // ---- requests
 
     private void renderRequests(JSONArray list) {
+        if (requests == null) return; // requests are handled from the Waiting lane
         dropTiles(requests);
         requests.removeAllViews();
         for (int i = 0; list != null && i < list.length(); i++) {
@@ -1002,19 +1055,6 @@ public class BoothActivity extends Activity {
             text.addView(b, lp(-1, -2, dp(2), 0));
             row.addView(text, new LinearLayout.LayoutParams(0, -2, 1f));
             alerts.addView(row, lp(-1, -2, i == 0 ? 0 : dp(8), 0));
-        }
-        if (alerts.getChildCount() == 0) {
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(16), dp(14), dp(16), dp(14));
-            Look.Glass g = new Look.Glass(dp(16), 0.8f);
-            g.setSmoke(photoSmoke);
-            row.setBackground(g);
-            row.addView(new Lamp(this, GREEN, true), lp(dp(11), dp(11), 0, 0, dp(12)));
-            TextView t = Look.text(this, Look.sans(this, 500), 14, 0xE6FFFFFF);
-            t.setText("All quiet. Nothing needs you.");
-            row.addView(t);
-            alerts.addView(row);
         }
     }
 
