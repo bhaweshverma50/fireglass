@@ -92,6 +92,15 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
     public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || e.getPackageName() == null) return;
         String pkg = e.getPackageName().toString();
+        // A system prompt (Allow USB debugging?, install, permissions): stand down, never cover it.
+        CharSequence ecls = e.getClassName();
+        if (SystemUi.isPrompt(pkg, ecls == null ? null : ecls.toString())) {
+            SystemUi.opened();
+            standDown();
+            if (!pkg.equals("android") && !pkg.equals("com.android.systemui")) front = pkg;
+            return;
+        }
+        if (pkg.equals(getPackageName())) SystemUi.gone(); // in front again: the prompt was answered
         // Popups and toasts from the system don't count as what's in front.
         if (pkg.equals("android") || pkg.equals("com.android.systemui")) return;
         front = pkg;
@@ -165,6 +174,14 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
      * loop of bounces (3 in 10 s, say an app fighting back) stands aside for a minute.
      */
     private void bounce() {
+        // A system prompt is up: leave the screen to it. Looks at the windows too, in case its
+        // own event was missed (it opened while the service was rebinding, say).
+        if (!SystemUi.active() && promptWindowUp()) SystemUi.opened();
+        if (SystemUi.holdHome()) {
+            Log.i(TAG, "system prompt up: not bouncing");
+            standDown();
+            return;
+        }
         long now = SystemClock.uptimeMillis();
         if (now - lastBounce < 1500 || now < pausedUntil) return;
         if (now - lastSettingsAt < 2000) {
@@ -191,6 +208,30 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
         // The Amazon launcher holds ~130 MB; reclaim it once it's behind us (after the 5 s guard).
         ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         handler.postDelayed(() -> am.killBackgroundProcesses(AMAZON_HOME), 8000);
+    }
+
+    /** An application window of a system prompt is on screen (see SystemUi). */
+    private boolean promptWindowUp() {
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                if (w.getType() != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue;
+                AccessibilityNodeInfo root = w.getRoot();
+                if (root == null) continue;
+                CharSequence p = root.getPackageName();
+                root.recycle();
+                if (p != null && SystemUi.isPrompt(p.toString(), null)) return true;
+            }
+        } catch (RuntimeException ignored) { }
+        return false;
+    }
+
+    /** A prompt is on screen: cover down, pairing card away, no queued bounce, no screensaver over it. */
+    private void standDown() {
+        Log.i(TAG, "system prompt opened: covers down");
+        removeMask();
+        hidePin();
+        arrived(this);
+        Screensaver.dismiss();
     }
 
     /** The page puts the words as heard ("search for mirzapur") at the top; it may take a moment to fill. */
@@ -283,6 +324,7 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
     }
 
     private void showMask() {
+        if (SystemUi.active()) return; // never over a system prompt
         if (covering || cover == null) return;
         covering = true;
         cover.animate().cancel();
@@ -316,6 +358,7 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
 
     /** Home from the phone: straight to this launcher (no Home key, so no 5 s app-switch hold). */
     @Override public void goHome() {
+        if (SystemUi.active()) return; // not over (or past) a system prompt
         startActivity(new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
     }
@@ -352,6 +395,7 @@ public class HomeService extends AccessibilityService implements RemoteServer.Ho
     /** Pairing code, top right over whatever is on screen, for two minutes. */
     @Override public void showPin(String pin, String device) {
         hidePin();
+        if (SystemUi.active()) return;
         LinearLayout card = pinCard(this, pin, device);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(-2, -2,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,

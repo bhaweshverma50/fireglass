@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  */
 final class Legacy implements RemoteServer.Host {
     private static final String TAG = "TvHome";
-    private static final Pattern CMP = Pattern.compile("cmp=([\\w.]+)/");
+    private static final Pattern CMP = Pattern.compile("cmp=([\\w.]+)/([\\w.$]+)");
 
     private final Context c;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -103,13 +103,25 @@ final class Legacy implements RemoteServer.Host {
                     boolean first = SystemClock.uptimeMillis() < since;
                     if (!l.startsWith("START u0 {")) continue;
                     Matcher m = CMP.matcher(l);
-                    if (!m.find()) continue;
-                    String pkg = m.group(1);
+                    boolean found = m.find();
+                    String pkg = found ? m.group(1) : "";
+                    String cls = found ? m.group(2) : "";
+                    // A system prompt (Allow USB debugging?, install, permissions) opened: nothing of ours
+                    // may cover it, bounce past it or leave it behind (SystemUi). Never on a replayed line.
+                    if (!first && ((found && SystemUi.isPrompt(pkg, cls)) || SystemUi.isPromptAction(l))) {
+                        SystemUi.opened();
+                        main.post(this::standDown);
+                        if (found) front = pkg;
+                        continue;
+                    }
+                    if (!found) continue;
                     front = pkg;
+                    // Another app opened over the prompt: it was left, so the hold ends.
+                    if (!first && SystemUi.active() && !pkg.equals(HomeService.AMAZON_HOME) && !pkg.equals(c.getPackageName())) SystemUi.gone();
                     boolean home = pkg.equals(HomeService.AMAZON_HOME) && l.contains("cat=[android.intent.category.HOME]");
                     if (home && !first) main.post(this::bounce);
                     // Alexa's voice search (and Amazon's own) opens its results page: ours instead.
-                    if (!first && pkg.equals(HomeService.AMAZON_HOME) && l.contains("SearchResults")) {
+                    if (!first && pkg.equals(HomeService.AMAZON_HOME) && l.contains("SearchResults") && !SystemUi.active()) {
                         new Thread(this::voiceSearch, "voice").start();
                     }
                 }
@@ -126,6 +138,12 @@ final class Legacy implements RemoteServer.Host {
      * Android 5 doesn't release a launch that is already waiting, so the lift comes before the start.
      */
     private void bounce() {
+        // A system prompt is up (USB debugging, install, permissions): leave the screen to it.
+        if (SystemUi.holdHome()) {
+            Log.i(TAG, "system prompt up: not bouncing");
+            standDown();
+            return;
+        }
         showCover(false); // the home as it was left: it looks back at once
         if (toFront()) {
             // Ours in front: starting it now isn't held, and clears Search or Settings off the top.
@@ -207,6 +225,7 @@ final class Legacy implements RemoteServer.Host {
             String q = Search.spokenQuery(r.substring(3));
             if (q.isEmpty()) break;
             Log.i(TAG, "voice search: " + q);
+            if (SystemUi.active()) break; // a system prompt came up meanwhile
             c.startActivity(new Intent(c, Search.class).putExtra(Search.QUERY, q).putExtra(Search.FROM_VOICE, true)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
             // Amazon's launcher holds ~75 MB; it isn't needed behind our results.
@@ -216,6 +235,14 @@ final class Legacy implements RemoteServer.Host {
         }
         Log.w(TAG, "voice search: nothing to read on Amazon's page");
         main.post(this::removeCover);
+    }
+
+    /** A system prompt is on screen: drop the cover and the pairing card, stop the screensaver, so it can be answered. */
+    private void standDown() {
+        Log.i(TAG, "system prompt opened: covers down");
+        removeCover();
+        hidePin();
+        Screensaver.dismiss();
     }
 
     /** True while the loading cover is up (MainActivity then reveals itself and lifts it). */
@@ -231,6 +258,7 @@ final class Legacy implements RemoteServer.Host {
 
     /** Android 5 grants SYSTEM_ALERT_WINDOW at install: HomeService's loading screen, or Search's for a voice search. */
     private void showCover(boolean search) {
+        if (SystemUi.active()) return; // never over a system prompt
         main.removeCallbacks(uncoverTask);
         // Never strand the remote behind it. A voice search on a cold Amazon page can take ~6 s to read.
         main.postDelayed(uncoverTask, search ? 10_000 : 6000);
@@ -280,6 +308,7 @@ final class Legacy implements RemoteServer.Host {
             boolean legacy = android.os.Build.VERSION.SDK_INT < 23;
             // Fire OS 5 handles boot in Legacy (and delivered this ~3 min late in testing); updates are
             // HomeService's on Fire OS 7. A late boot broadcast must not pull someone out of an app.
+            if (SystemUi.active()) return;
             if (boot ? legacy || SystemClock.elapsedRealtime() > 120_000 : !legacy) return;
             c.startActivity(new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
@@ -288,12 +317,14 @@ final class Legacy implements RemoteServer.Host {
     @Override public String front() { return front; }
 
     @Override public void goHome() {
+        if (SystemUi.active()) return; // not over (or past) a system prompt
         c.startActivity(new Intent(c, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
     }
 
     @Override public void showPin(String code, String device) {
         hidePin();
+        if (SystemUi.active()) return;
         View card = HomeService.pinCard(c, code, device);
         // Android 5 grants SYSTEM_ALERT_WINDOW at install.
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(-2, -2,
