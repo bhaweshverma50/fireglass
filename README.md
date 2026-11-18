@@ -37,6 +37,14 @@ Stick 4K Max), and running on the Fire TV Stick 2nd gen (Fire OS 5, Android 5.1)
 - **Lights.** Your WiZ smart bulbs from the TV and the phone: power, brightness, warmth, colours
   and WiZ's scenes, plus two automatic modes: dim the room while something plays, and let the
   light take the colour of what you're on in the home.
+- **Booth.** A control screen for a home-lab media server (the homelab-control "Booth" web app):
+  the pipeline as posters by stage (waiting for approval, searching, downloading with progress,
+  ready), the server phone's battery, heat, storage and CPU, services with status lamps and
+  Restart / Start / Stop (Stop asks first), requests to approve or decline, and active alerts.
+  First run asks for the server address (default 192.168.0.12:8888) and password, typed with the
+  remote (an on-screen key grid on Fire OS 5); only the session cookie is stored, never the password.
+- **Out of the way of system prompts.** Allow USB debugging, install and permission dialogs are never
+  covered, bounced past or left behind: while one is up Fireglass stands down (see `SystemUi.java`).
 - **Offline, calmly.** Without internet the home keeps working on what it saved, says so, offers
   Wi-Fi settings, and refreshes by itself once the TV is back online.
 - **A live sky** behind everything that follows the time of day, a fixed colour wash, or one of

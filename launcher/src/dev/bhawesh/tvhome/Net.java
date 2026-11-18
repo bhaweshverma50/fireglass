@@ -31,10 +31,13 @@ final class Net {
     }
 
     /** Image at least {@code width} px wide (downsampled by powers of two), RGB_565, or null. */
-    static Bitmap image(Context c, String url, int width) {
+    static Bitmap image(Context c, String url, int width) { return image(c, url, width, ""); }
+
+    /** Same, for a server that wants a session cookie (Booth). */
+    static Bitmap image(Context c, String url, int width, String cookie) {
         if (url == null) return null;
         try {
-            File f = cached(c, url);
+            File f = cached(c, url, cookie);
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inJustDecodeBounds = true;
             BitmapFactory.decodeFile(f.getPath(), o);
@@ -50,7 +53,7 @@ final class Net {
         }
     }
 
-    private static File cached(Context c, String url) throws Exception {
+    private static File cached(Context c, String url, String cookie) throws Exception {
         File dir = new File(c.getCacheDir(), "img");
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("no cache dir");
         StringBuilder name = new StringBuilder();
@@ -61,6 +64,7 @@ final class Net {
         HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
         h.setConnectTimeout(8000);
         h.setReadTimeout(15000);
+        if (!cookie.isEmpty()) h.setRequestProperty("Cookie", cookie);
         try (InputStream in = h.getInputStream(); FileOutputStream out = new FileOutputStream(tmp)) {
             byte[] buf = new byte[16384];
             for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);

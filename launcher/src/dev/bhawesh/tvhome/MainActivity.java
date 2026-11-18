@@ -171,6 +171,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        SystemUi.gone(); // in front again: any system prompt over us has been answered
         HomeService.arrived(this);
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
         tf.addAction(Intent.ACTION_TIME_CHANGED);
@@ -486,12 +487,14 @@ public class MainActivity extends Activity {
         TextView search = navItem("Search", new Look.Icon(Look.Icon.SEARCH, dp(15)), () -> startActivity(new Intent(this, Search.class)));
         TextView recents = navItem("Apps in use", new Look.Icon(Look.Icon.RECENTS, dp(15)), this::showSwitcher);
         TextView lightsItem = navItem("Lights", new Look.Icon(Look.Icon.BULB, dp(15)), () -> startActivity(new Intent(this, LightsActivity.class)));
+        TextView boothItem = navItem("Booth", new Look.Icon(Look.Icon.SERVER, dp(15)), () -> startActivity(new Intent(this, BoothActivity.class)));
         wifiItem = navItem("Wi-Fi", wifiIcon, () -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS)));
         TextView[] settings = new TextView[1];
         settings[0] = navItem("Settings", new Look.Icon(Look.Icon.GEAR, dp(15)), () -> showSettings(settings[0]));
         row.addView(search, new LinearLayout.LayoutParams(-2, -1));
         row.addView(recents, new LinearLayout.LayoutParams(-2, -1));
         row.addView(lightsItem, new LinearLayout.LayoutParams(-2, -1));
+        row.addView(boothItem, new LinearLayout.LayoutParams(-2, -1));
         row.addView(wifiItem, new LinearLayout.LayoutParams(-2, -1));
         row.addView(settings[0], new LinearLayout.LayoutParams(-2, -1));
         return capsule;
